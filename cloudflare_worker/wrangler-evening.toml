@@ -1,0 +1,10 @@
+name = "line-investment-evening"
+main = "evening.js"
+compatibility_date = "2024-01-01"
+
+[triggers]
+crons = ["0 14 * * 1-5"]
+
+# wrangler secret put GH_PAT
+# wrangler secret put GH_REPO
+# wrangler secret put GH_BRANCH

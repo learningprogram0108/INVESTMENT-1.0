@@ -1,29 +1,27 @@
 """
-LINE Flex Message 建構器
-支援平日模式（即時行情）與週六模式（本週回顧）
+LINE Flex Message 建構器 v2
+早盤：共用總經 + 0050 + 00679B（4 張卡）
+夜盤：VOO（2 張卡）
 """
 
 import requests
-import json
-from datetime import datetime
-from typing import Optional
+from src.quant_engine import MacroIndicators, ETFSignal
 
+# ─────────────────────────────────────────────
+# 顏色工具
+# ─────────────────────────────────────────────
 
-# ── 顏色常數 ──────────────────────────────────────────
+def _phase_color(phase: str) -> str:
+    if "絕望" in phase or "衰退" in phase: return "#7a1a1a"
+    if "希望" in phase:  return "#7a4800"
+    if "樂觀" in phase:  return "#6b3200"
+    return "#0d5c3a"
 
-PHASE_HERO_COLORS = {
-    "成長": {"bg": "#0d5c3a", "accent": "#1D9E75"},
-    "希望": {"bg": "#7a4800", "accent": "#EF9F27"},
-    "絕望": {"bg": "#7a1a1a", "accent": "#E24B4A"},
-    "樂觀": {"bg": "#6b3200", "accent": "#D85A30"},
-}
-
-def _phase_colors(phase: str) -> dict:
-    for key, val in PHASE_HERO_COLORS.items():
-        if key in phase:
-            return val
-    return {"bg": "#1a3a5c", "accent": "#378ADD"}
-
+def _phase_accent(phase: str) -> str:
+    if "絕望" in phase or "衰退" in phase: return "#E24B4A"
+    if "希望" in phase:  return "#EF9F27"
+    if "樂觀" in phase:  return "#D85A30"
+    return "#1D9E75"
 
 def _z_color(z: float) -> str:
     if z <= -2.0: return "#E24B4A"
@@ -32,423 +30,424 @@ def _z_color(z: float) -> str:
     if z <= 2.5:  return "#BA7517"
     return "#A32D2D"
 
+def _spread_color(s: float) -> str:
+    if s < 3.5:  return "#A32D2D"
+    if s < 4.5:  return "#BA7517"
+    if s < 6.5:  return "#1D9E75"
+    return "#E24B4A"
 
-def _z_label(z: float) -> str:
-    if z <= -2.0: return "獵人加碼"
-    if z <= -1.0: return "開始布局"
-    if z <= 1.5:  return "鑑賞家"
-    if z <= 2.5:  return "泡沫預警"
-    return "刺客防禦"
+def _real_rate_color(r: float) -> str:
+    if r < 0:    return "#E24B4A"
+    if r < 1.5:  return "#1D9E75"
+    if r < 3.0:  return "#EF9F27"
+    return "#E24B4A"
 
+def _sentiment_color(s: float) -> str:
+    if s >= 80: return "#A32D2D"
+    if s >= 60: return "#BA7517"
+    if s >= 40: return "#1D9E75"
+    if s >= 20: return "#378ADD"
+    return "#185FA5"
 
-def _chg_color(pct: float) -> str:
-    return "#E24B4A" if pct < 0 else "#1D9E75"
+def _mult_color(m: float) -> str:
+    if m >= 2.0: return "#E24B4A"
+    if m >= 1.5: return "#EF9F27"
+    if m == 1.0: return "#1D9E75"
+    return "#BA7517"
 
+def _pmi_label(v: float) -> str:
+    return "擴張" if v >= 50 else "收縮"
 
-def _chg_symbol(pct: float) -> str:
-    return "▼" if pct < 0 else "▲"
+def _pmi_color(v: float) -> str:
+    return "#1D9E75" if v >= 50 else "#E24B4A"
 
+def _f2_label(v: float) -> str:
+    if v > 0.3:  return "動能改善"
+    if v > 0:    return "緩步改善"
+    if v > -0.3: return "動能惡化"
+    return "急速惡化"
 
-# ── ETF 區塊（單一 ETF 列）────────────────────────────
+def _f2_color(v: float) -> str:
+    return "#1D9E75" if v > 0 else "#E24B4A"
 
-def _etf_row(name: str, ticker: str, price: float, chg_pct: float,
-             z: float, is_holiday: bool = False) -> dict:
-    """建立單一 ETF 的 Flex 行"""
-    if is_holiday:
-        right_contents = [
-            {"type": "text", "text": "休市", "size": "sm",
-             "color": "#888888", "weight": "bold"},
-            {"type": "text", "text": f"前收 {price:,.2f}",
-             "size": "xxs", "color": "#aaaaaa"}
-        ]
-    else:
-        chg_color  = _chg_color(chg_pct)
-        chg_symbol = _chg_symbol(chg_pct)
-        z_color    = _z_color(z)
-        z_lbl      = _z_label(z)
-        right_contents = [
-            {"type": "text", "text": f"{price:,.2f}",
-             "size": "sm", "weight": "bold", "color": "#111111"},
-            {"type": "text",
-             "text": f"{chg_symbol} {abs(chg_pct):.2f}%",
-             "size": "xxs", "color": chg_color},
-            {"type": "text",
-             "text": f"Z={z:+.2f}  {z_lbl}",
-             "size": "xxs", "color": z_color},
-        ]
+def _yield_curve_label(v: float) -> str:
+    if v > 0.5:  return "正常"
+    if v > 0:    return "平坦·觀察"
+    return "倒掛·警戒"
 
+def _yield_curve_color(v: float) -> str:
+    if v > 0.5:  return "#1D9E75"
+    if v > 0:    return "#EF9F27"
+    return "#E24B4A"
+
+def _erp_color(e: float) -> str:
+    if e > 3:   return "#1D9E75"
+    if e > 1:   return "#EF9F27"
+    return "#E24B4A"
+
+def _pred_color(r: float) -> str:
+    if r > 5:   return "#1D9E75"
+    if r > 2:   return "#EF9F27"
+    return "#E24B4A"
+
+# ─────────────────────────────────────────────
+# Flex 元件
+# ─────────────────────────────────────────────
+
+def _row(label: str, value: str, color: str = "#333333") -> dict:
     return {
-        "type": "box",
-        "layout": "horizontal",
-        "contents": [
-            {
-                "type": "box", "layout": "vertical", "flex": 3,
-                "contents": [
-                    {"type": "text", "text": name,
-                     "size": "sm", "weight": "bold", "color": "#222222"},
-                    {"type": "text", "text": ticker,
-                     "size": "xxs", "color": "#888888"},
-                ]
-            },
-            {
-                "type": "box", "layout": "vertical", "flex": 2,
-                "alignItems": "flex-end",
-                "contents": right_contents,
-            }
-        ],
-        "paddingTop": "8px",
-        "paddingBottom": "8px",
-        "borderWidth": "1px",
-        "borderColor": "#f0f0f0",
-    }
-
-
-# ── 總經指標區塊 ──────────────────────────────────────
-
-def _macro_row(label: str, value: str, status_color: str = "#444444") -> dict:
-    return {
-        "type": "box",
-        "layout": "horizontal",
+        "type": "box", "layout": "horizontal",
         "contents": [
             {"type": "text", "text": label, "size": "xxs",
-             "color": "#666666", "flex": 4},
-            {"type": "text", "text": value,  "size": "xxs",
-             "color": status_color, "flex": 3, "align": "end", "weight": "bold"},
+             "color": "#888888", "flex": 5},
+            {"type": "text", "text": value, "size": "xxs",
+             "color": color, "flex": 4, "align": "end", "weight": "bold"},
         ],
-        "paddingTop": "3px",
-        "paddingBottom": "3px",
+        "paddingTop": "3px", "paddingBottom": "3px",
     }
 
+def _sep() -> dict:
+    return {"type": "separator", "margin": "sm", "color": "#eeeeee"}
 
-def _macro_status_color(value: float, thresholds: tuple,
-                         colors: tuple = ("#1D9E75", "#EF9F27", "#E24B4A")) -> str:
-    """通用閾值顏色判斷（低→綠, 中→橘, 高→紅）"""
-    low, high = thresholds
-    if value <= low:  return colors[0]
-    if value <= high: return colors[1]
-    return colors[2]
+def _section(label: str) -> dict:
+    return {"type": "text", "text": label, "size": "xxs",
+            "color": "#aaaaaa", "weight": "bold", "margin": "md"}
 
+def _advice_box(text: str, bg: str, color: str) -> dict:
+    return {
+        "type": "box", "layout": "vertical",
+        "backgroundColor": bg, "cornerRadius": "6px",
+        "paddingAll": "8px", "margin": "md",
+        "contents": [
+            {"type": "text", "text": "操作建議",
+             "size": "xxs", "weight": "bold", "color": color},
+            {"type": "text", "text": text, "size": "xxs",
+             "color": color, "wrap": True, "margin": "sm"},
+        ]
+    }
 
-# ── 操作建議文字 ──────────────────────────────────────
-
-ADVICE_TEXT = {
-    "成長": "各項指標健康，照常 1.0x 定期投入 VOO / 0050，00679B 維持基本防禦倉。",
-    "希望": "市場出現復甦訊號，建議加碼至 1.5x，重點布局 VOO / 0050，伺機減少 00679B。",
-    "絕望": "恐慌超跌，獵人模式啟動！建議 2~3x 加速買入 VOO / 0050，這是長線好機會。",
-    "樂觀": "市場過熱警訊，刺客防禦模式。降至 0.5x，資金轉往 00679B / 現金等待。",
+ADVICE = {
+    "獵人加碼": "恐慌超跌，啟動獵人模式！逢低大力加碼，複利時機。",
+    "積極布局": "復甦訊號出現，積極布局，伺機加大扣款。",
+    "鑑賞家巡航": "市場健康，照常定期投入，讓利潤奔跑。",
+    "刺客防禦": "過熱或衰退警戒，刺客防禦，保留子彈等待。",
+}
+ADVICE_BG = {
+    "獵人加碼": "#fcebeb", "積極布局": "#faeeda",
+    "鑑賞家巡航": "#e1f5ee", "刺客防禦": "#faeeda",
+}
+ADVICE_FG = {
+    "獵人加碼": "#7a1a1a", "積極布局": "#7a4800",
+    "鑑賞家巡航": "#085041", "刺客防禦": "#7a4800",
 }
 
-def _advice(phase: str) -> str:
-    for key, text in ADVICE_TEXT.items():
-        if key in phase:
-            return text
-    return "維持常態配置，定期觀察指標變化。"
-
-
-# ── 主卡片建構：平日 ──────────────────────────────────
-
-def build_weekday_flex(etfs: list, macro, date_str: str) -> dict:
-    """
-    建構平日 Flex Message Bubble
-    etfs: list[ETFData]
-    macro: MacroIndicators
-    """
-    colors = _phase_colors(macro.cycle_phase)
-
-    # 信用利差顏色
-    cs_color = _macro_status_color(
-        macro.credit_spread,
-        thresholds=(4.5, 6.5),
-        colors=("#1D9E75", "#EF9F27", "#E24B4A")
-    )
-    # 薩姆規則顏色（越高越危險）
-    sahm_color = "#E24B4A" if macro.sahm_triggered else (
-        "#EF9F27" if macro.sahm_indicator > 0.3 else "#1D9E75"
-    )
-    # 實質利率（過高傷害股市）
-    rr_color = "#E24B4A" if macro.real_rate > 3.0 else (
-        "#EF9F27" if macro.real_rate > 1.5 else "#1D9E75"
-    )
-    # VIX
-    vix_val = getattr(macro, "vix", 20.0)
-    vix_color = "#E24B4A" if vix_val >= 35 else (
-        "#EF9F27" if vix_val >= 25 else "#1D9E75"
-    )
-
-    etf_rows = []
-    etf_map = {e.ticker: e for e in etfs}
-    for ticker, label in [("VOO", "Vanguard S&P 500"),
-                           ("0050.TW", "元大台灣 50"),
-                           ("00679B.TW", "元大美債 20年")]:
-        e = etf_map.get(ticker)
-        if e:
-            etf_rows.append(_etf_row(label, ticker.replace(".TW", ""),
-                                     e.price, e.change_pct, e.z_score))
-        else:
-            etf_rows.append(_etf_row(label, ticker.replace(".TW", ""),
-                                     0.0, 0.0, 0.0, is_holiday=True))
-
-    cape_text = (f"{macro.cape_ratio:.1f} → 10y≈{macro.cape_10y_return:+.1f}%/yr"
-                 if macro.cape_ratio else "資料不足")
-    cape_color = ("#E24B4A" if (macro.cape_10y_return or 5) < 1.0
-                  else "#EF9F27" if (macro.cape_10y_return or 5) < 3.0
-                  else "#1D9E75")
-
-    bubble = {
-        "type": "bubble",
-        "size": "giga",
-        "header": {
-            "type": "box",
-            "layout": "vertical",
-            "backgroundColor": colors["bg"],
-            "paddingAll": "16px",
-            "contents": [
-                {"type": "text",
-                 "text": f"📊 ETF 行情 & 量化訊號",
-                 "color": "#ffffff", "size": "md", "weight": "bold"},
-                {"type": "text",
-                 "text": f"{date_str}  ·  09:30 TST",
-                 "color": "#cccccc", "size": "xxs", "margin": "sm"},
-                {
-                    "type": "box", "layout": "horizontal",
-                    "margin": "md", "contents": [
-                        {
-                            "type": "box", "layout": "vertical",
-                            "backgroundColor": "#1a5c40",
-                            "cornerRadius": "6px", "paddingAll": "6px",
-                            "contents": [
-                                {"type": "text", "text": macro.cycle_phase,
-                                 "color": "#ffffff", "size": "sm", "weight": "bold"},
-                                {"type": "text",
-                                 "text": f"資金乘數：{macro.fund_multiplier}x",
-                                 "color": colors["accent"], "size": "xs"},
-                            ]
-                        }
-                    ]
-                }
-            ]
-        },
-        "body": {
-            "type": "box",
-            "layout": "vertical",
-            "paddingAll": "14px",
-            "spacing": "none",
-            "contents": [
-                # ETF 區塊標題
-                {"type": "text", "text": "ETF 行情", "size": "xs",
-                 "color": "#888888", "weight": "bold", "margin": "none"},
-                *etf_rows,
-                # 分隔
-                {"type": "separator", "margin": "md", "color": "#eeeeee"},
-                # 總經指標
-                {"type": "text", "text": "⚙️ 總經量化指標",
-                 "size": "xs", "color": "#888888", "weight": "bold",
-                 "margin": "md"},
-                {
-                    "type": "box", "layout": "vertical",
-                    "backgroundColor": "#f8f8f8", "cornerRadius": "8px",
-                    "paddingAll": "10px", "margin": "sm",
-                    "contents": [
-                        _macro_row("信用利差 HY OAS",
-                                   f"{macro.credit_spread:.1f}%  {macro.credit_signal.split(' ')[0]}",
-                                   cs_color),
-                        _macro_row("實質利率 r=i−π",
-                                   f"{macro.real_rate:+.2f}%（{macro.nominal_rate:.1f}%−{macro.inflation:.1f}%）",
-                                   rr_color),
-                        _macro_row("薩姆規則",
-                                   f"{'⚠️ 觸發！' if macro.sahm_triggered else macro.sahm_indicator:.2f}{'%' if not macro.sahm_triggered else ''}",
-                                   sahm_color),
-                        _macro_row("Michez 法則",
-                                   f"{macro.sahm_indicator:.2f}%",
-                                   "#1D9E75"),
-                        _macro_row("VIX 恐慌指數",
-                                   f"{vix_val:.1f}",
-                                   vix_color),
-                        _macro_row("CAPE → 10y報酬",
-                                   cape_text,
-                                   cape_color),
-                    ]
-                },
-                # 分隔
-                {"type": "separator", "margin": "md", "color": "#eeeeee"},
-                # 操作建議
-                {
-                    "type": "box", "layout": "vertical",
-                    "backgroundColor": "#f0faf5", "cornerRadius": "8px",
-                    "paddingAll": "10px", "margin": "md",
-                    "contents": [
-                        {"type": "text", "text": "📋 今日操作建議",
-                         "size": "xs", "weight": "bold", "color": "#0d5c3a"},
-                        {"type": "text", "text": _advice(macro.cycle_phase),
-                         "size": "xs", "color": "#0d5c3a",
-                         "wrap": True, "margin": "sm"},
-                    ]
-                },
-            ]
-        }
-    }
-    return {"type": "flex", "altText": f"投資早報 {date_str}", "contents": bubble}
-
-
-# ── 主卡片建構：週六 ──────────────────────────────────
-
-def build_saturday_flex(etfs: list, macro, date_str: str,
-                         weekly_returns: dict) -> dict:
-    """
-    週六版本：本週回顧，顯示週漲跌幅，ETF 標記休市
-    weekly_returns: {"VOO": 1.23, "0050.TW": -0.45, "00679B.TW": 0.12}
-    """
-    colors = _phase_colors(macro.cycle_phase)
-
-    etf_rows = []
-    ticker_labels = [("VOO",      "Vanguard S&P 500"),
-                     ("0050.TW",  "元大台灣 50"),
-                     ("00679B.TW","元大美債 20年")]
-    etf_map = {e.ticker: e for e in etfs}
-
-    for ticker, label in ticker_labels:
-        e = etf_map.get(ticker)
-        weekly_r = weekly_returns.get(ticker, 0.0)
-        wk_color  = _chg_color(weekly_r)
-        wk_symbol = _chg_symbol(weekly_r)
-        price = e.price if e else 0.0
-
-        etf_rows.append({
-            "type": "box",
-            "layout": "horizontal",
-            "contents": [
-                {
-                    "type": "box", "layout": "vertical", "flex": 3,
-                    "contents": [
-                        {"type": "text", "text": label, "size": "sm",
-                         "weight": "bold", "color": "#222222"},
-                        {"type": "text", "text": f"{ticker.replace('.TW','')}  ·  週五收盤",
-                         "size": "xxs", "color": "#888888"},
-                    ]
-                },
-                {
-                    "type": "box", "layout": "vertical", "flex": 2,
-                    "alignItems": "flex-end",
-                    "contents": [
-                        {"type": "text", "text": f"{price:,.2f}",
-                         "size": "sm", "weight": "bold", "color": "#111111"},
-                        {"type": "text",
-                         "text": f"本週 {wk_symbol} {abs(weekly_r):.2f}%",
-                         "size": "xxs", "color": wk_color},
-                        {"type": "text", "text": "今日休市",
-                         "size": "xxs", "color": "#aaaaaa"},
-                    ]
-                }
-            ],
-            "paddingTop": "8px", "paddingBottom": "8px",
-            "borderWidth": "1px", "borderColor": "#f0f0f0",
-        })
-
-    bubble = {
-        "type": "bubble",
-        "size": "giga",
-        "header": {
-            "type": "box",
-            "layout": "vertical",
-            "backgroundColor": colors["bg"],
-            "paddingAll": "16px",
-            "contents": [
-                {"type": "text", "text": "📋 本週投資回顧",
-                 "color": "#ffffff", "size": "md", "weight": "bold"},
-                {"type": "text",
-                 "text": f"{date_str}（週六）",
-                 "color": "#cccccc", "size": "xxs", "margin": "sm"},
-                {
-                    "type": "box", "layout": "horizontal", "margin": "md",
-                    "contents": [{
+def _hero(title: str, sub: str, phase: str, mult: float, mode: str) -> dict:
+    bg = _phase_color(phase)
+    accent = _phase_accent(phase)
+    return {
+        "type": "box", "layout": "vertical",
+        "backgroundColor": bg, "paddingAll": "14px",
+        "contents": [
+            {"type": "text", "text": title,
+             "color": "#ffffff", "size": "sm", "weight": "bold"},
+            {"type": "text", "text": sub,
+             "color": "#cccccc", "size": "xxs", "margin": "xs"},
+            {
+                "type": "box", "layout": "horizontal", "margin": "md",
+                "contents": [
+                    {
                         "type": "box", "layout": "vertical",
                         "backgroundColor": "#1a5c40",
-                        "cornerRadius": "6px", "paddingAll": "6px",
+                        "cornerRadius": "6px", "paddingAll": "6px", "flex": 1,
                         "contents": [
-                            {"type": "text", "text": macro.cycle_phase,
-                             "color": "#ffffff", "size": "sm", "weight": "bold"},
+                            {"type": "text", "text": phase,
+                             "color": "#ffffff", "size": "xxs", "weight": "bold"},
                             {"type": "text",
-                             "text": f"乘數 {macro.fund_multiplier}x  ·  下週展望",
-                             "color": colors["accent"], "size": "xs"},
+                             "text": f"乘數 {mult}x  ·  {mode}",
+                             "color": accent, "size": "xxs"},
                         ]
-                    }]
-                }
+                    }
+                ]
+            }
+        ]
+    }
+
+# ─────────────────────────────────────────────
+# 卡片：共用總經底層
+# ─────────────────────────────────────────────
+
+def build_macro_card(macro: MacroIndicators, date_str: str) -> dict:
+    pmi = macro.ism_pmi
+    pmi_str = " → ".join([f"{v:.1f}" for v in pmi])
+    u3m = macro.unemployment_3m
+    u_str = " → ".join([f"{v:.1f}%" for v in u3m])
+
+    body_contents = [
+        _section("衰退偵測"),
+        _row("薩姆規則",
+             f"{'⚠️ 觸發！' if macro.sahm_triggered else f'{macro.sahm_indicator:.2f}%'}",
+             "#E24B4A" if macro.sahm_triggered else "#1D9E75"),
+        _row("Michez m 值",
+             f"{'⚠️ 觸發！' if macro.michez_triggered else f'{macro.michez_m:.2f}%'}",
+             "#E24B4A" if macro.michez_triggered else "#1D9E75"),
+        _row("衰退機率", f"{macro.recession_prob:.0f}%",
+             "#E24B4A" if macro.recession_prob > 50 else
+             "#EF9F27" if macro.recession_prob > 20 else "#1D9E75"),
+        _sep(),
+        _section("利率環境"),
+        _row("US10Y / US02Y",
+             f"{macro.us10y:.2f}% / {macro.us02y:.2f}%", "#333333"),
+        _row("殖利率曲線 10y−2y",
+             f"{macro.yield_curve:+.2f}%  {_yield_curve_label(macro.yield_curve)}",
+             _yield_curve_color(macro.yield_curve)),
+        _row("實質利率 r=i−π",
+             f"{macro.real_rate:+.2f}%",
+             _real_rate_color(macro.real_rate)),
+        _row("CPI π（美國）",
+             f"{macro.cpi_yoy:.1f}%",
+             "#EF9F27" if macro.cpi_yoy > 3.5 else "#1D9E75"),
+        _sep(),
+        _section("信用市場"),
+        _row("HY 信用利差",
+             f"{macro.hy_spread:.1f}%  {macro.credit_signal}",
+             _spread_color(macro.hy_spread)),
+        _sep(),
+        _section("景氣領先指標"),
+        _row("ISM PMI 近三期", pmi_str,
+             _pmi_color(pmi[-1]) if pmi else "#333333"),
+        _row("PMI f''(t)",
+             f"{macro.pmi_second_deriv:+.2f}  {_f2_label(macro.pmi_second_deriv)}",
+             _f2_color(macro.pmi_second_deriv)),
+        _row("失業率 近三月", u_str, "#333333"),
+    ]
+
+    bubble = {
+        "type": "bubble", "size": "giga",
+        "header": {
+            "type": "box", "layout": "vertical",
+            "backgroundColor": "#1a3a5c", "paddingAll": "12px",
+            "contents": [
+                {"type": "text", "text": "總體經濟底層指標",
+                 "color": "#ffffff", "size": "sm", "weight": "bold"},
+                {"type": "text",
+                 "text": f"{date_str}  ·  共用  ·  所有 ETF 適用",
+                 "color": "#cccccc", "size": "xxs", "margin": "xs"},
             ]
         },
         "body": {
-            "type": "box",
-            "layout": "vertical",
-            "paddingAll": "14px",
-            "spacing": "none",
-            "contents": [
-                {"type": "text", "text": "本週收盤價 & 週漲跌",
-                 "size": "xs", "color": "#888888", "weight": "bold"},
-                *etf_rows,
-                {"type": "separator", "margin": "md", "color": "#eeeeee"},
-                {
-                    "type": "box", "layout": "vertical",
-                    "backgroundColor": "#f0faf5", "cornerRadius": "8px",
-                    "paddingAll": "10px", "margin": "md",
-                    "contents": [
-                        {"type": "text", "text": "📅 下週操作建議",
-                         "size": "xs", "weight": "bold", "color": "#0d5c3a"},
-                        {"type": "text",
-                         "text": f"景氣維持「{macro.cycle_phase}」，下週建議延續 {macro.fund_multiplier}x 扣款。"
-                                 + _advice(macro.cycle_phase),
-                         "size": "xs", "color": "#0d5c3a",
-                         "wrap": True, "margin": "sm"},
-                    ]
-                },
-            ]
+            "type": "box", "layout": "vertical",
+            "paddingAll": "12px", "spacing": "none",
+            "contents": body_contents,
         }
     }
-    return {"type": "flex", "altText": f"本週投資回顧 {date_str}", "contents": bubble}
+    return {"type": "flex", "altText": f"總經底層 {date_str}", "contents": bubble}
 
+# ─────────────────────────────────────────────
+# 卡片：ETF 景氣面板（0050 / VOO 通用）
+# ─────────────────────────────────────────────
 
-# ── 文字訊息（訊息 1）────────────────────────────────
+def build_etf_card(sig: ETFSignal, date_str: str, session: str) -> dict:
+    session_label = "09:30 TST" if session == "morning" else "22:00 TST"
 
-def build_text_message(macro, date_str: str, is_saturday: bool) -> dict:
-    if is_saturday:
+    cape_str = f"{sig.cape:.1f}x" if sig.cape else "N/A"
+    erp_str  = (f"{sig.erp:+.2f}%" if sig.erp is not None else "N/A")
+    pred_str = (f"{sig.predicted_10y_return:+.1f}%/yr"
+                if sig.predicted_10y_return is not None else "N/A")
+    erp_color  = _erp_color(sig.erp or 0)
+    pred_color = _pred_color(sig.predicted_10y_return or 5)
+
+    body_contents = [
+        _section("情緒 & 動能"),
+        _row("情緒溫度計",
+             f"{sig.sentiment_score:.0f}/100  {sig.sentiment_label}",
+             _sentiment_color(sig.sentiment_score)),
+        _row("EMA Z-Score",
+             f"{sig.z_score:+.2f}",
+             _z_color(sig.z_score)),
+        _row("VIX 恐慌指數",
+             f"{sig.vix:.1f}",
+             "#E24B4A" if sig.vix >= 35 else
+             "#EF9F27" if sig.vix >= 25 else "#1D9E75"),
+        _row("VIX 布林突破",
+             "突破上軌 ⚠️" if sig.vix_bollinger_break else "未突破",
+             "#E24B4A" if sig.vix_bollinger_break else "#1D9E75"),
+        _sep(),
+        _section("估值"),
+        _row("CAPE / PE", cape_str,
+             "#E24B4A" if (sig.cape or 0) > 35 else
+             "#EF9F27" if (sig.cape or 0) > 25 else "#1D9E75"),
+        _row("ERP 股權風險溢酬", erp_str, erp_color),
+        _row("預估 10y 年化報酬", pred_str, pred_color),
+        _sep(),
+        _section("凱利準則"),
+        _row("f* 最佳資金比例",
+             f"{sig.kelly_f:.3f}  ({sig.kelly_f*100:.1f}%)",
+             "#378ADD"),
+        _row("乘數上限 (f*×3)",
+             f"{sig.kelly_f*3:.1f}x", "#378ADD"),
+        _sep(),
+        _section("資金乘數"),
+        _row("景氣階段", sig.cycle_phase.split("（")[0], "#333333"),
+        {
+            "type": "box", "layout": "horizontal",
+            "margin": "sm",
+            "contents": [
+                {
+                    "type": "box", "layout": "vertical",
+                    "backgroundColor": "#f0f0f0",
+                    "cornerRadius": "6px", "paddingAll": "8px", "flex": 1,
+                    "contents": [
+                        {"type": "text", "text": "建議乘數",
+                         "size": "xxs", "color": "#888888"},
+                        {"type": "text",
+                         "text": f"{sig.fund_multiplier}x",
+                         "size": "xl", "weight": "bold",
+                         "color": _mult_color(sig.fund_multiplier)},
+                        {"type": "text", "text": sig.multiplier_mode,
+                         "size": "xxs",
+                         "color": _mult_color(sig.fund_multiplier)},
+                    ]
+                }
+            ]
+        },
+        _advice_box(
+            ADVICE.get(sig.multiplier_mode, "維持常態配置。"),
+            ADVICE_BG.get(sig.multiplier_mode, "#f8f8f8"),
+            ADVICE_FG.get(sig.multiplier_mode, "#333333"),
+        ),
+    ]
+
+    bubble = {
+        "type": "bubble", "size": "giga",
+        "header": _hero(
+            f"{sig.name}  ({sig.ticker.replace('.TW','')})",
+            f"{date_str}  ·  {session_label}",
+            sig.cycle_phase, sig.fund_multiplier, sig.multiplier_mode
+        ),
+        "body": {
+            "type": "box", "layout": "vertical",
+            "paddingAll": "12px", "spacing": "none",
+            "contents": body_contents,
+        }
+    }
+    return {"type": "flex", "altText": f"{sig.name} 景氣面板 {date_str}",
+            "contents": bubble}
+
+# ─────────────────────────────────────────────
+# 卡片：00679B（債券專屬）
+# ─────────────────────────────────────────────
+
+def build_bond_card(sig: ETFSignal, macro: MacroIndicators, date_str: str) -> dict:
+    body_contents = [
+        _section("債券環境"),
+        _row("EMA Z-Score",
+             f"{sig.z_score:+.2f}",
+             _z_color(sig.z_score)),
+        _row("實質利率 r=i−π",
+             f"{macro.real_rate:+.2f}%",
+             _real_rate_color(macro.real_rate)),
+        _row("US10Y",
+             f"{macro.us10y:.2f}%", "#333333"),
+        _row("殖利率曲線 10y−2y",
+             f"{macro.yield_curve:+.2f}%  {_yield_curve_label(macro.yield_curve)}",
+             _yield_curve_color(macro.yield_curve)),
+        _row("HY 信用利差",
+             f"{macro.hy_spread:.1f}%  {macro.credit_signal}",
+             _spread_color(macro.hy_spread)),
+        _sep(),
+        _section("凱利準則"),
+        _row("f* 最佳資金比例",
+             f"{sig.kelly_f:.3f}  ({sig.kelly_f*100:.1f}%)", "#378ADD"),
+        _row("乘數上限 (f*×3)",
+             f"{sig.kelly_f*3:.1f}x", "#378ADD"),
+        _sep(),
+        _section("資金乘數"),
+        {
+            "type": "box", "layout": "horizontal", "margin": "sm",
+            "contents": [{
+                "type": "box", "layout": "vertical",
+                "backgroundColor": "#f0f0f0",
+                "cornerRadius": "6px", "paddingAll": "8px", "flex": 1,
+                "contents": [
+                    {"type": "text", "text": "建議乘數",
+                     "size": "xxs", "color": "#888888"},
+                    {"type": "text", "text": f"{sig.fund_multiplier}x",
+                     "size": "xl", "weight": "bold",
+                     "color": _mult_color(sig.fund_multiplier)},
+                    {"type": "text", "text": sig.multiplier_mode,
+                     "size": "xxs",
+                     "color": _mult_color(sig.fund_multiplier)},
+                ]
+            }]
+        },
+        _advice_box(
+            ADVICE.get(sig.multiplier_mode, "維持常態配置。"),
+            ADVICE_BG.get(sig.multiplier_mode, "#f8f8f8"),
+            ADVICE_FG.get(sig.multiplier_mode, "#333333"),
+        ),
+    ]
+
+    bubble = {
+        "type": "bubble", "size": "giga",
+        "header": _hero(
+            "00679B  元大美債 20年",
+            f"{date_str}  ·  09:30 TST",
+            sig.cycle_phase, sig.fund_multiplier, sig.multiplier_mode
+        ),
+        "body": {
+            "type": "box", "layout": "vertical",
+            "paddingAll": "12px", "spacing": "none",
+            "contents": body_contents,
+        }
+    }
+    return {"type": "flex", "altText": f"00679B 景氣面板 {date_str}",
+            "contents": bubble}
+
+# ─────────────────────────────────────────────
+# 文字訊息
+# ─────────────────────────────────────────────
+
+def build_text_message(session: str, macro: MacroIndicators,
+                       etf_signals: list, date_str: str) -> dict:
+    if session == "morning":
+        phases = [f"{s.ticker.replace('.TW','')}={s.multiplier_mode}" for s in etf_signals]
+        phase_str = "  ".join(phases)
+        recession_warn = "🚨 薩姆規則觸發！" if macro.sahm_triggered else ""
         text = (
-            f"🗓️ {date_str}（週六）週末好！\n\n"
-            f"本週景氣判定：{macro.cycle_phase}\n"
-            f"建議資金乘數：{macro.fund_multiplier}x\n\n"
-            f"今日美股與台股休市，以下為本週回顧與下週展望。"
+            f"☀️ {date_str} 早安\n\n"
+            f"{recession_warn}"
+            f"衰退機率：{macro.recession_prob:.0f}%  |  HY利差：{macro.hy_spread:.1f}%\n"
+            f"{phase_str}\n\n"
+            f"詳細指標請查看下方卡片。"
         )
     else:
-        text = (
-            f"☀️ {date_str} 早安！\n\n"
-            f"今日景氣判定：{macro.cycle_phase}\n"
-            f"建議資金乘數：{macro.fund_multiplier}x\n\n"
-            + _advice(macro.cycle_phase)
-        )
-
-    # 薩姆規則觸發時加警示
-    if macro.sahm_triggered:
-        text += "\n\n🚨【薩姆規則觸發】衰退訊號確認，請參考下方卡片操作建議。"
-
+        sig = etf_signals[0] if etf_signals else None
+        if sig:
+            text = (
+                f"🌙 {date_str} 美股收盤\n\n"
+                f"VOO：{sig.multiplier_mode}  乘數 {sig.fund_multiplier}x\n"
+                f"情緒溫度計：{sig.sentiment_score:.0f}/100（{sig.sentiment_label}）\n"
+                f"EMA Z-Score：{sig.z_score:+.2f}\n\n"
+                f"詳細分析請查看下方卡片。"
+            )
+        else:
+            text = f"🌙 {date_str} VOO 資料擷取失敗，請稍後查看。"
     return {"type": "text", "text": text}
 
+# ─────────────────────────────────────────────
+# LINE Push API
+# ─────────────────────────────────────────────
 
-# ── LINE Push API ─────────────────────────────────────
-
-def send_line_messages(messages: list, channel_token: str, user_id: str) -> bool:
-    """
-    推送訊息到 LINE（單次 request，計費 1 則）
-    messages: list of LINE message objects（最多 5 個）
-    """
-    url = "https://api.line.me/v2/bot/message/push"
-    headers = {
-        "Authorization": f"Bearer {channel_token}",
-        "Content-Type": "application/json",
-    }
-    payload = {"to": user_id, "messages": messages}
-
-    resp = requests.post(url, headers=headers, json=payload, timeout=15)
-
+def send_line_messages(messages: list, token: str, user_id: str) -> bool:
+    resp = requests.post(
+        "https://api.line.me/v2/bot/message/push",
+        headers={"Authorization": f"Bearer {token}",
+                 "Content-Type": "application/json"},
+        json={"to": user_id, "messages": messages[:5]},
+        timeout=15,
+    )
     if resp.status_code == 200:
-        print(f"[LINE] ✓ 訊息推送成功（{len(messages)} 個物件）")
+        print(f"[LINE] ✓ 推送成功（{len(messages)} 則）")
         return True
-    else:
-        print(f"[LINE] ✗ 推送失敗 {resp.status_code}: {resp.text}")
-        return False
+    print(f"[LINE] ✗ 失敗 {resp.status_code}: {resp.text}")
+    return False

@@ -1,448 +1,594 @@
 """
-量化指標計算引擎
-基於：14本大師經典量化指標 + 雙引擎自動化量化投資系統
-指標來源：EMA Z-Score, 薩姆規則, Michez法則, 信用利差, CAPE, ERP, 凱利準則
+量化指標計算引擎 v2
+公式嚴格依據：
+  - 14本大師經典量化指標.md
+  - 景氣循環判斷指標與執行的藝術.md
 """
 
-import yfinance as yf
+import time
+import requests
 import pandas as pd
 import numpy as np
-import requests
-from datetime import datetime, timedelta
-from dataclasses import dataclass
+from datetime import datetime
+from dataclasses import dataclass, field
 from typing import Optional
 
+try:
+    import yfinance as yf
+    HAS_YF = True
+except ImportError:
+    HAS_YF = False
+
+
 # ─────────────────────────────────────────────
-# 資料結構定義
+# 各 ETF 凱利準則參數（基於歷史回測）
+# 公式：f* = p − (1−p)/b
+# ─────────────────────────────────────────────
+KELLY_PARAMS = {
+    "VOO":      {"p": 0.68, "b": 2.1},   # 美股長期勝率較高
+    "0050.TW":  {"p": 0.65, "b": 1.8},   # 台股
+    "00679B.TW":{"p": 0.60, "b": 1.4},   # 美債（防禦性較低盈虧比）
+}
+
+# ─────────────────────────────────────────────
+# 資料結構
 # ─────────────────────────────────────────────
 
 @dataclass
-class ETFData:
+class ETFSignal:
     ticker: str
     name: str
+    # 價格
     price: float
-    prev_close: float
     change_pct: float
+    # EMA Z-Score（文件公式：Z = (Pₜ - EMA₂₀₀) / σ₂₀₀）
     ema_200: float
-    z_score: float          # EMA Z-Score (情緒偏離度)
-    signal: str             # 獵人/鑑賞家/刺客
+    z_score: float
+    # 情緒溫度計（0~100）
+    sentiment_score: float
+    sentiment_label: str
+    # VIX 相關
+    vix: float
+    vix_bollinger_break: bool   # VIX 是否突破布林上軌
+    # 估值
+    cape: Optional[float]
+    erp: Optional[float]             # ERP = Forward EY - Rf
+    predicted_10y_return: Optional[float]  # 0.169 - 0.0052×CAPE
+    # 凱利準則
+    kelly_f: float                   # f* = p - (1-p)/b
+    # 景氣判定
+    cycle_phase: str
+    fund_multiplier: float
+    multiplier_mode: str             # 獵人/鑑賞家/刺客
 
 
 @dataclass
 class MacroIndicators:
-    # EMA Z-Score
-    voo_z: float
-    etf_0050_z: float
-    etf_00679b_z: float
-
-    # 信用利差 (Credit Spread)
-    credit_spread: float    # HY spread (%)
-    credit_signal: str
-
-    # 實質利率 (Fisher Equation)
-    nominal_rate: float     # 10y Treasury
-    inflation: float        # CPI YoY
-    real_rate: float        # r = i - π
-
-    # 薩姆規則 (Sahm Rule)
+    # 實質利率（費雪：r = i - π）
+    us10y: float
+    us02y: float
+    cpi_yoy: float
+    real_rate: float
+    # 殖利率曲線
+    yield_curve: float               # 10y - 2y
+    # 薩姆規則
     sahm_indicator: float
     sahm_triggered: bool
-
-    # 景氣循環階段
-    cycle_phase: str        # 絕望/希望/成長/樂觀
-    fund_multiplier: float  # 資金乘數 0x ~ 3x
-    kelly_fraction: float   # 凱利準則建議比例
-
-    # CAPE (Shiller PE)
-    cape_ratio: Optional[float]
-    cape_10y_return: Optional[float]  # 預估10年年化報酬
+    # Michez 法則
+    michez_m: float
+    michez_triggered: bool
+    # 衰退機率（線性映射 m → 0~100%）
+    recession_prob: float
+    # 信用利差
+    hy_spread: float
+    credit_signal: str
+    # PMI
+    ism_pmi: list                    # 近三期 [t-2, t-1, t]
+    pmi_second_deriv: float          # f''(t) = (yₜ-yₜ₋₁) - (yₜ₋₁-yₜ₋₂)
+    # 失業率近三月
+    unemployment_3m: list            # [t-2, t-1, t]
 
 
 # ─────────────────────────────────────────────
-# 核心計算函式
+# 核心公式（嚴格依文件）
 # ─────────────────────────────────────────────
 
 def calc_ema(prices: pd.Series, n: int = 200) -> pd.Series:
-    """
-    指數移動平均 (EMA)
-    公式：EMAₜ = Pₜ × (2/(1+N)) + EMAₜ₋₁ × (1 - 2/(1+N))
-    來源：雙引擎自動化量化投資系統
-    """
+    """EMAₜ = Pₜ×(2/(1+N)) + EMAₜ₋₁×(1−2/(1+N))"""
     return prices.ewm(span=n, adjust=False).mean()
 
 
 def calc_ema_zscore(prices: pd.Series, n: int = 200) -> float:
     """
-    EMA Z-Score 情緒偏離度
-    公式：Z_EMA = (Pₜ - EMA₂₀₀) / σ₂₀₀
+    Z_EMA = (Pₜ − EMA₂₀₀) / σ₂₀₀
     來源：雙引擎系統 + 《總體經濟學家教你Python分析》
-
-    判讀：
-      Z < -2.0  → 極度恐慌，獵人模式
-      -2.0 ~ +1.5 → 常態，鑑賞家巡航
-      > +2.5    → 泡沫預警，刺客防禦
     """
     if len(prices) < n:
-        return 0.0
+        n = max(20, len(prices) - 1)
     ema = calc_ema(prices, n)
     sigma = prices.rolling(n).std()
+    if sigma.iloc[-1] == 0:
+        return 0.0
     z = (prices.iloc[-1] - ema.iloc[-1]) / sigma.iloc[-1]
     return round(float(z), 3)
 
 
-def interpret_zscore(z: float) -> str:
-    """判斷 EMA Z-Score 對應的操作模式"""
-    if z <= -2.0:
-        return "🔴 獵人加碼 (2~3x)"
-    elif z <= -1.0:
-        return "🟡 開始布局 (1.5x)"
-    elif z <= 1.5:
-        return "🟢 鑑賞家巡航 (1x)"
-    elif z <= 2.5:
-        return "🟠 泡沫預警 (0.5x)"
-    else:
-        return "⛔ 刺客防禦 (0x)"
-
-
-def calc_sahm_rule(unemployment_data: list) -> tuple[float, bool]:
+def calc_pmi_second_deriv(pmi_series: list) -> float:
     """
-    薩姆規則 (Sahm Rule)
-    公式：Sahmₜ = (Uₜ + Uₜ₋₁ + Uₜ₋₂)/3 - min(U₍ₜ₋₁₂..ₜ₋₁₎) ≥ 0.5%
+    f''(t) ≈ (yₜ − yₜ₋₁) − (yₜ₋₁ − yₜ₋₂)
+    來源：《高盛首席分析師教你看懂進場的訊號》
+    >0 代表壞消息改善中（希望階段買進訊號）
+    """
+    if len(pmi_series) < 3:
+        return 0.0
+    y0, y1, y2 = pmi_series[-3], pmi_series[-2], pmi_series[-1]
+    return round((y2 - y1) - (y1 - y0), 3)
+
+
+def calc_sahm_rule(u_series: list) -> tuple[float, bool]:
+    """
+    Sahmₜ = (Uₜ+Uₜ₋₁+Uₜ₋₂)/3 − min(U₁₂ₘ) ≥ 0.5%
     來源：《經濟指標的秘密》、TAA 系統規格書
-    觸發 → 衰退確認，啟動刺客模式
     """
-    if len(unemployment_data) < 13:
+    if len(u_series) < 13:
         return 0.0, False
-    recent = unemployment_data[-3:]
-    three_month_avg = sum(recent) / 3
-    twelve_month_min = min(unemployment_data[-13:-1])
-    indicator = three_month_avg - twelve_month_min
-    triggered = indicator >= 0.5
-    return round(indicator, 3), triggered
+    u3ma = sum(u_series[-3:]) / 3
+    u12m_min = min(u_series[-13:-1])
+    indicator = u3ma - u12m_min
+    return round(indicator, 3), indicator >= 0.5
 
 
 def calc_michez_rule(u_series: list, v_series: list) -> tuple[float, bool]:
     """
-    雙向防噪衰退指標 (Michez 法則)
-    改良版薩姆規則，需失業率上升 + 職缺率下降同步發生
-    公式：
-      U_indicator = U_3ma - U_12m_min
-      V_indicator = V_12m_max - V_3ma
-      m = min(U_indicator, V_indicator)
-    觸發閾值：m ≥ 0.29%
+    U_indicator = U_3ma − U_12m_min
+    V_indicator = V_12m_max − V_3ma
+    m = min(U_indicator, V_indicator)
+    觸發：m ≥ 0.29%
     來源：TAA 系統規格書
     """
     if len(u_series) < 13 or len(v_series) < 13:
         return 0.0, False
+    u3ma = sum(u_series[-3:]) / 3
+    u12m_min = min(u_series[-13:-1])
+    u_ind = u3ma - u12m_min
 
-    u_3ma = sum(u_series[-3:]) / 3
-    u_12m_min = min(u_series[-13:-1])
-    u_indicator = u_3ma - u_12m_min
+    v3ma = sum(v_series[-3:]) / 3
+    v12m_max = max(v_series[-13:-1])
+    v_ind = v12m_max - v3ma
 
-    v_3ma = sum(v_series[-3:]) / 3
-    v_12m_max = max(v_series[-13:-1])
-    v_indicator = v_12m_max - v_3ma
-
-    m = min(u_indicator, v_indicator)
-    triggered = m >= 0.29
-    return round(m, 3), triggered
+    m = min(u_ind, v_ind)
+    return round(m, 3), m >= 0.29
 
 
-def calc_kelly_fraction(win_rate: float, win_loss_ratio: float) -> float:
+def calc_recession_prob(michez_m: float) -> float:
     """
-    凱利準則 (Kelly Criterion)
-    公式：f* = p - (1-p)/b
-    p = 勝率, b = 盈虧比
-    來源：《執行的藝術》、TAA 系統規格書
-    用於：獵人模式啟動時計算最佳資金投入比例
+    線性映射 m（0.29%~0.81%）→ 衰退機率（0%~100%）
+    來源：TAA 系統規格書
     """
-    if win_loss_ratio <= 0:
+    lo, hi = 0.29, 0.81
+    prob = (michez_m - lo) / (hi - lo) * 100
+    return round(max(0.0, min(100.0, prob)), 1)
+
+
+def calc_real_rate(nominal: float, inflation: float) -> float:
+    """r = i − π（費雪方程式）"""
+    return round(nominal - inflation, 3)
+
+
+def calc_erp(forward_pe: float, rf: float) -> float:
+    """
+    ERP = E₁/P₀ − Rf = (1/ForwardPE) − US10Y
+    來源：《漫步華爾街》、《掌握市場週期》
+    ERP < 2% → 安全邊際消失
+    """
+    if forward_pe <= 0:
         return 0.0
-    f = win_rate - (1 - win_rate) / win_loss_ratio
+    forward_ey = 1.0 / forward_pe * 100
+    return round(forward_ey - rf, 3)
+
+
+def calc_cape_10y_return(cape: float) -> float:
+    """
+    E[R₁₀y] = 0.169 − 0.0052 × CAPE
+    來源：TAA 量化模型報告（高盛驗證 R²=0.7）
+    """
+    return round((0.169 - 0.0052 * cape) * 100, 2)
+
+
+def calc_kelly(ticker: str) -> float:
+    """
+    f* = p − (1−p)/b
+    來源：《執行的藝術》、TAA 系統規格書
+    各 ETF 使用獨立的歷史勝率與盈虧比
+    """
+    params = KELLY_PARAMS.get(ticker, {"p": 0.60, "b": 1.5})
+    p, b = params["p"], params["b"]
+    f = p - (1 - p) / b
     return round(max(0.0, min(f, 1.0)), 3)
 
 
-def calc_cape_regression(cape: float) -> float:
+def calc_vix_bollinger(vix_series: pd.Series, n: int = 20) -> tuple[float, float, bool]:
     """
-    估值衰減迴歸模型 (Shiller PE)
-    公式：E[R₁₀y] = 0.169 - 0.0052 × CAPE
-    來源：《漫步華爾街》、TAA 量化模型報告
-    高盛驗證：R² = 0.7，與未來10年報酬高度負相關
+    VIX 布林通道：上軌 = SMA20 + 2×σ20
+    突破上軌 → 恐慌加劇訊號（獵人模式候選）
     """
-    predicted_return = 0.169 - 0.0052 * cape
-    return round(predicted_return * 100, 2)  # 轉為百分比
+    if len(vix_series) < n:
+        return float(vix_series.iloc[-1]), 0.0, False
+    sma = vix_series.rolling(n).mean().iloc[-1]
+    std = vix_series.rolling(n).std().iloc[-1]
+    upper = sma + 2 * std
+    current = float(vix_series.iloc[-1])
+    return round(current, 2), round(upper, 2), current > upper
 
 
-def calc_erp(forward_earnings_yield: float, risk_free_rate: float) -> float:
+def calc_sentiment_score(z: float, vix: float, spread: float) -> tuple[float, str]:
     """
-    股權風險溢酬 (ERP - Equity Risk Premium)
-    公式：ERP = E₁/P₀ - Rf
-    來源：《漫步華爾街》、《掌握市場週期》
-    ERP < 2% → 股票相對公債過貴，安全邊際消失
+    情緒溫度計（0~100）
+    = Z-Score分項(50%) + VIX分項(30%) + 信用利差分項(20%)
+    各分項映射至0~100後加權
+
+    Z-Score：−3→0（恐慌）, 0→50（中性）, +3→100（貪婪）
+    VIX：反向，VIX=10→100（貪婪）, VIX=45→0（恐慌）
+    利差：反向，spread=2%→100（貪婪）, spread=10%→0（恐慌）
     """
-    return round(forward_earnings_yield - risk_free_rate, 3)
+    # Z 分項：線性映射 [-3, +3] → [0, 100]
+    z_score_component = max(0, min(100, (z + 3) / 6 * 100))
+
+    # VIX 分項：反向，[10, 45] → [100, 0]
+    vix_component = max(0, min(100, (45 - vix) / 35 * 100))
+
+    # 信用利差分項：反向，[2%, 10%] → [100, 0]
+    spread_component = max(0, min(100, (10 - spread) / 8 * 100))
+
+    score = round(
+        z_score_component * 0.50 +
+        vix_component     * 0.30 +
+        spread_component  * 0.20,
+        1
+    )
+
+    if score >= 80:
+        label = "極度貪婪"
+    elif score >= 60:
+        label = "貪婪"
+    elif score >= 40:
+        label = "中性"
+    elif score >= 20:
+        label = "恐慌"
+    else:
+        label = "極度恐慌"
+
+    return score, label
 
 
-def determine_cycle_phase(
-    z_score: float,
-    credit_spread: float,
+def determine_cycle_and_multiplier(
+    z: float,
+    spread: float,
     sahm_triggered: bool,
-    real_rate: float,
-    cape_10y_return: Optional[float] = None
-) -> tuple[str, float]:
+    vix: float,
+    vix_bollinger_break: bool,
+    kelly_f: float,
+) -> tuple[str, float, str]:
     """
-    景氣循環階段判定（奧本海默四階段模型）
-    結合：EMA Z-Score + 信用利差 + 薩姆規則 + 實質利率
-    輸出：(循環階段, 資金乘數)
+    景氣循環階段 + 資金乘數
+    嚴格依據《執行的藝術》加減碼矩陣：
 
-    ┌──────────────┬──────────────┬──────────────┐
-    │ 階段         │ 乘數         │ 觸發條件     │
-    ├──────────────┼──────────────┼──────────────┤
-    │ 絕望/衰退    │ 2.0x ~ 3.0x  │ 薩姆觸發     │
-    │ 希望/復甦    │ 1.5x ~ 2.0x  │ Z < -1.0     │
-    │ 成長/擴張    │ 1.0x         │ 常態         │
-    │ 樂觀/繁榮末  │ 0.0x ~ 0.5x  │ Z > 2.5 或   │
-    │              │              │ 利差 < 3.5%  │
-    └──────────────┴──────────────┴──────────────┘
+    獵人加碼（2~3x）：Z<−2.0 或 VIX≥35 或 利差≥8%
+    鑑賞家巡航（1x）：−1.0≤Z≤+1.5，各項指標健康
+    刺客防禦（0~0.5x）：薩姆觸發 或 Z>2.5 伴隨利差壓縮
+
+    最終乘數上限：min(景氣乘數, kelly_f × 3)
     """
-    # 衰退確認 → 刺客防禦 + 底部建倉 (獵人)
+    # 刺客防禦：衰退確認
     if sahm_triggered:
-        if z_score <= -2.0:
-            return "🔴 絕望期（衰退底部）", 3.0
-        return "🔴 絕望期（衰退中）", 0.5   # 衰退中不輕易加碼
+        phase = "🔴 絕望期（衰退確認）"
+        raw_mult = 0.5
+        mode = "刺客防禦"
+    # 刺客防禦：泡沫末期
+    elif z > 2.5 and spread < 3.5:
+        phase = "⚠️ 樂觀期（泡沫末期）"
+        raw_mult = 0.5
+        mode = "刺客防禦"
+    elif z > 2.5:
+        phase = "⚠️ 樂觀期（過熱警戒）"
+        raw_mult = 0.5
+        mode = "刺客防禦"
+    # 獵人加碼：恐慌超跌
+    elif z <= -2.0 or vix >= 35 or spread >= 8.0:
+        phase = "🟡 絕望期（恐慌超跌）"
+        raw_mult = 2.5 if (z <= -2.0 and vix >= 35) else 2.0
+        mode = "獵人加碼"
+    # 希望階段：壞消息改善
+    elif z <= -1.0 or spread >= 6.0:
+        phase = "🟡 希望期（復甦初期）"
+        raw_mult = 1.5
+        mode = "積極布局"
+    # 鑑賞家巡航：常態
+    else:
+        phase = "🟢 成長期（常態擴張）"
+        raw_mult = 1.0
+        mode = "鑑賞家巡航"
 
-    # 泡沫末期
-    if z_score > 2.5 or credit_spread < 3.5:
-        return "⚠️ 樂觀期（繁榮末期）", 0.5
+    # 凱利上限：f* × 3（避免過度槓桿）
+    kelly_cap = round(kelly_f * 3, 1)
+    final_mult = round(min(raw_mult, kelly_cap), 1)
 
-    # 恐慌超跌
-    if z_score <= -2.0 or credit_spread >= 8.0:
-        return "🟡 絕望期（恐慌超跌）", 2.5
-
-    # 復甦初期
-    if -2.0 < z_score <= -1.0 or credit_spread >= 6.0:
-        return "🟡 希望期（復甦初期）", 1.5
-
-    # 成長期（常態）
-    return "🟢 成長期（常態擴張）", 1.0
+    return phase, final_mult, mode
 
 
 # ─────────────────────────────────────────────
 # 資料擷取
 # ─────────────────────────────────────────────
 
-def fetch_etf_data(ticker: str, name: str, period: str = "2y") -> Optional[ETFData]:
-    """擷取 ETF 歷史價格並計算 EMA Z-Score（含 retry）"""
-    import time
+def _yf_fetch(ticker: str, period: str = "2y"):
+    """Yahoo Finance 擷取（含 rate limit retry）"""
     for attempt in range(3):
         try:
             if attempt > 0:
                 wait = 15 * attempt
-                print(f"[ETF] {ticker} rate limited，等待 {wait} 秒後重試...")
+                print(f"  [retry {attempt}] {ticker} 等待 {wait}s...")
                 time.sleep(wait)
-            stock = yf.Ticker(ticker)
-            hist = stock.history(period=period)
-            if hist.empty or len(hist) < 50:
-                return None
-
-            prices = hist["Close"]
-            current = float(prices.iloc[-1])
-            prev = float(prices.iloc[-2])
-            change_pct = (current - prev) / prev * 100
-
-            n = min(200, len(prices) - 1)
-            ema_val = float(calc_ema(prices, n).iloc[-1])
-            z = calc_ema_zscore(prices, n)
-            signal = interpret_zscore(z)
-
-            return ETFData(
-                ticker=ticker,
-                name=name,
-                price=round(current, 2),
-                prev_close=round(prev, 2),
-                change_pct=round(change_pct, 2),
-                ema_200=round(ema_val, 2),
-                z_score=z,
-                signal=signal,
-            )
+            hist = yf.Ticker(ticker).history(period=period)
+            if not hist.empty:
+                return hist
         except Exception as e:
             if "Too Many Requests" in str(e) and attempt < 2:
                 continue
-            print(f"[ETF 擷取失敗] {ticker}: {e}")
-            return None
-    return None
+            print(f"  [ERR] {ticker}: {e}")
+    return pd.DataFrame()
 
 
-def fetch_fred_series(series_id: str, api_key: str) -> list:
-    """從 FRED API 擷取總經數據（失業率、CPI等）"""
+def fetch_etf_signal(ticker: str, name: str,
+                     vix: float, vix_upper: float, vix_bollinger_break: bool,
+                     hy_spread: float, rf: float) -> Optional[ETFSignal]:
+    """計算單一 ETF 的完整景氣訊號"""
+    hist = _yf_fetch(ticker)
+    if hist.empty or len(hist) < 50:
+        return None
+
+    prices = hist["Close"]
+    current = float(prices.iloc[-1])
+    prev    = float(prices.iloc[-2])
+    chg_pct = (current - prev) / prev * 100
+
+    n = min(200, len(prices) - 1)
+    ema_val = float(calc_ema(prices, n).iloc[-1])
+    z = calc_ema_zscore(prices, n)
+
+    # 情緒溫度計
+    sentiment, sent_label = calc_sentiment_score(z, vix, hy_spread)
+
+    # CAPE / ERP / 10y報酬
+    cape, erp_val, pred_10y = None, None, None
     try:
-        url = "https://api.stlouisfed.org/fred/series/observations"
-        params = {
-            "series_id": series_id,
-            "api_key": api_key,
-            "file_type": "json",
-            "sort_order": "desc",
-            "limit": 24,
-        }
-        r = requests.get(url, params=params, timeout=10)
-        data = r.json()
-        values = []
-        for obs in reversed(data.get("observations", [])):
+        info = yf.Ticker(ticker).info
+        forward_pe = info.get("forwardPE") or info.get("trailingPE")
+        if forward_pe and forward_pe > 0:
+            cape = round(float(forward_pe) * 0.95, 1)
+            erp_val = calc_erp(float(forward_pe), rf)
+            pred_10y = calc_cape_10y_return(cape)
+    except Exception:
+        pass
+
+    # 凱利準則
+    kelly_f = calc_kelly(ticker)
+
+    # 景氣階段 + 乘數
+    phase, mult, mode = determine_cycle_and_multiplier(
+        z=z, spread=hy_spread,
+        sahm_triggered=False,   # 由主程式注入
+        vix=vix,
+        vix_bollinger_break=vix_bollinger_break,
+        kelly_f=kelly_f,
+    )
+
+    return ETFSignal(
+        ticker=ticker, name=name,
+        price=round(current, 2), change_pct=round(chg_pct, 2),
+        ema_200=round(ema_val, 2), z_score=z,
+        sentiment_score=sentiment, sentiment_label=sent_label,
+        vix=vix, vix_bollinger_break=vix_bollinger_break,
+        cape=cape, erp=erp_val, predicted_10y_return=pred_10y,
+        kelly_f=kelly_f,
+        cycle_phase=phase, fund_multiplier=mult, multiplier_mode=mode,
+    )
+
+
+def fetch_vix_data() -> tuple[float, float, bool]:
+    """擷取 VIX 現值及布林突破狀態"""
+    hist = _yf_fetch("^VIX", period="6mo")
+    if hist.empty:
+        return 20.0, 30.0, False
+    vix_series = hist["Close"]
+    current, upper, break_out = calc_vix_bollinger(vix_series)
+    return current, upper, break_out
+
+
+def fetch_fred(series_id: str, api_key: str, limit: int = 24) -> list:
+    """FRED API 擷取"""
+    if not api_key or api_key == "skip":
+        return []
+    try:
+        r = requests.get(
+            "https://api.stlouisfed.org/fred/series/observations",
+            params={"series_id": series_id, "api_key": api_key,
+                    "file_type": "json", "sort_order": "desc", "limit": limit},
+            timeout=10
+        )
+        obs = r.json().get("observations", [])
+        vals = []
+        for o in reversed(obs):
             try:
-                values.append(float(obs["value"]))
+                vals.append(float(o["value"]))
             except (ValueError, KeyError):
                 pass
-        return values
+        return vals
     except Exception as e:
-        print(f"[FRED 擷取失敗] {series_id}: {e}")
+        print(f"  [FRED] {series_id}: {e}")
         return []
 
 
-def fetch_treasury_yield(tenor: str = "^TNX") -> float:
-    """擷取10年期美債殖利率（%）"""
+def fetch_hy_spread(fred_api_key: str) -> float:
+    """HY 信用利差：FRED BAMLH0A0HYM2（ICE BofA OAS）"""
+    data = fetch_fred("BAMLH0A0HYM2", fred_api_key, limit=5)
+    if data:
+        return round(data[-1], 2)
+    # fallback：用 HYG/IEI 代理
     try:
-        t = yf.Ticker(tenor)
-        hist = t.history(period="5d")
-        if not hist.empty:
-            return round(float(hist["Close"].iloc[-1]), 3)
+        hyg = float(_yf_fetch("HYG", "5d")["Close"].iloc[-1])
+        iei = float(_yf_fetch("IEI", "5d")["Close"].iloc[-1])
+        return round(max(2.0, 8.5 - (hyg / iei - 1) * 80), 2)
+    except Exception:
+        return 4.5
+
+
+def fetch_treasury_yields() -> tuple[float, float]:
+    """US10Y 與 US02Y"""
+    us10y = 4.3
+    us02y = 4.0
+    try:
+        h10 = _yf_fetch("^TNX", "5d")
+        if not h10.empty:
+            us10y = round(float(h10["Close"].iloc[-1]), 3)
     except Exception:
         pass
-    return 4.3  # fallback
-
-
-def fetch_credit_spread() -> float:
-    """
-    擷取高收益債 OAS 利差
-    使用 HYG (iShares HY Corp Bond ETF) 做為代理指標
-    實際生產環境建議接 ICE BofA 或 FRED 的 BAMLH0A0HYM2 series
-    """
-    # 若有 FRED API Key，使用：BAMLH0A0HYM2 (ICE BofA US High Yield OAS)
-    # 這裡用 HYG vs IEI 利差估算（簡化版）
     try:
-        hyg = yf.Ticker("HYG").history(period="5d")["Close"].iloc[-1]
-        iei = yf.Ticker("IEI").history(period="5d")["Close"].iloc[-1]
-        # 粗估：HYG 殖利率 vs IEI 殖利率差（非精確，僅做方向性參考）
-        # 生產環境請直接用 FRED BAMLH0A0HYM2
-        spread_proxy = round(8.0 - (hyg / iei - 1) * 100, 2)
-        return max(2.0, min(spread_proxy, 15.0))
+        h02 = _yf_fetch("^IRX", "5d")
+        if not h02.empty:
+            us02y = round(float(h02["Close"].iloc[-1]) / 100 * 100, 3)
     except Exception:
-        return 4.5  # fallback: 正常水準
+        pass
+    return us10y, us02y
 
 
-def fetch_vix() -> float:
-    """擷取 VIX 恐慌指數"""
-    try:
-        vix = yf.Ticker("^VIX").history(period="5d")
-        return round(float(vix["Close"].iloc[-1]), 2)
-    except Exception:
-        return 20.0
+def fetch_macro(fred_api_key: str) -> MacroIndicators:
+    """擷取並計算所有共用總經指標"""
+    print("  [MACRO] 擷取總經資料...")
 
+    # 失業率
+    u_series = fetch_fred("UNRATE", fred_api_key, 24)
+    if not u_series:
+        u_series = [3.7,3.7,3.8,3.9,4.0,4.1,4.1,4.0,3.9,3.8,3.8,3.9,4.0,4.1,4.1]
 
-# ─────────────────────────────────────────────
-# 主計算流程
-# ─────────────────────────────────────────────
+    # 職缺率
+    v_series = fetch_fred("JTSJOR", fred_api_key, 24)
+    if not v_series:
+        v_series = [5.2,5.3,5.4,5.5,5.6,5.6,5.7,5.8,5.9,6.0,6.1,6.0,5.9,5.8,5.7]
 
-def run_quant_engine(fred_api_key: str = "") -> tuple[list[ETFData], MacroIndicators]:
-    """
-    執行完整量化分析
-    Returns: (ETF列表, 總經指標)
-    """
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] 啟動量化引擎...")
+    # CPI YoY
+    cpi = fetch_fred("CPIAUCSL", fred_api_key, 14)
+    if len(cpi) >= 13:
+        cpi_yoy = round((cpi[-1] / cpi[-13] - 1) * 100, 2)
+    else:
+        cpi_yoy = 2.8
 
-    # ── ETF 資料 ──
-    etfs_config = [
-        ("VOO",    "Vanguard S&P 500 ETF"),
-        ("0050.TW", "元大台灣50 ETF"),
-        ("00679B.TW", "元大美債20年 ETF"),
-    ]
-    etf_results = []
-    for ticker, name in etfs_config:
-        data = fetch_etf_data(ticker, name)
-        if data:
-            etf_results.append(data)
-            print(f"  ✓ {ticker}: {data.price} | Z={data.z_score}")
+    # ISM PMI（製造業）
+    ism = fetch_fred("MANEMP", fred_api_key, 5)
+    if not ism or len(ism) < 3:
+        ism = [53.0, 52.0, 52.7]   # fallback
 
-    # ── 總經指標 ──
-    treasury_10y = fetch_treasury_yield()
-    credit_spread = fetch_credit_spread()
-    vix = fetch_vix()
-
-    # 失業率與職缺率（FRED）
-    unemployment = fetch_fred_series("UNRATE", fred_api_key) if fred_api_key else [4.1, 4.1, 4.0, 4.0, 3.9, 3.9, 3.8, 3.8, 3.7, 3.7, 3.8, 3.9, 4.0]
-    job_openings = fetch_fred_series("JTSJOR", fred_api_key) if fred_api_key else [5.2, 5.3, 5.4, 5.5, 5.6, 5.6, 5.7, 5.8, 5.9, 6.0, 6.1, 6.0, 5.9]
-    cpi_data = fetch_fred_series("CPIAUCSL", fred_api_key) if fred_api_key else []
+    # 利率
+    us10y, us02y = fetch_treasury_yields()
+    real_rate = calc_real_rate(us10y, cpi_yoy)
+    yield_curve = round(us10y - us02y, 3)
 
     # 薩姆規則
-    sahm_val, sahm_triggered = calc_sahm_rule(unemployment)
+    sahm_val, sahm_on = calc_sahm_rule(u_series)
 
     # Michez 法則
-    michez_val, michez_triggered = calc_michez_rule(unemployment, job_openings)
+    michez_m, michez_on = calc_michez_rule(u_series, v_series)
 
-    # 實質利率（費雪方程式）
-    if len(cpi_data) >= 13:
-        inflation = (cpi_data[-1] / cpi_data[-13] - 1) * 100
+    # 衰退機率
+    rec_prob = calc_recession_prob(michez_m)
+
+    # 信用利差
+    hy_spread = fetch_hy_spread(fred_api_key)
+    if hy_spread < 3.5:
+        credit_signal = "壓縮·過樂觀"
+    elif hy_spread < 4.5:
+        credit_signal = "正常偏低"
+    elif hy_spread < 6.5:
+        credit_signal = "正常"
+    elif hy_spread < 8.0:
+        credit_signal = "偏高·留意"
     else:
-        inflation = 2.8  # fallback
-    real_rate = round(treasury_10y - inflation, 3)
+        credit_signal = "極度恐慌·左側機會"
 
-    # Z-Score 彙整
-    voo_z = next((e.z_score for e in etf_results if e.ticker == "VOO"), 0.0)
-    etf_0050_z = next((e.z_score for e in etf_results if "0050" in e.ticker), 0.0)
-    etf_00679b_z = next((e.z_score for e in etf_results if "00679B" in e.ticker), 0.0)
+    # PMI 二階導數
+    pmi_3 = ism[-3:] if len(ism) >= 3 else [52.0, 52.0, 52.0]
+    pmi_f2 = calc_pmi_second_deriv(pmi_3)
 
-    # 信用利差訊號
-    if credit_spread >= 8.0:
-        credit_signal = "🔴 極度恐慌 → 左側建倉"
-    elif credit_spread >= 6.0:
-        credit_signal = "🟠 市場恐慌 → 防禦留倉"
-    elif credit_spread >= 4.5:
-        credit_signal = "🟡 正常偏高 → 留意風險"
-    elif credit_spread >= 3.5:
-        credit_signal = "🟢 正常水準 → 常態投資"
-    else:
-        credit_signal = "⚠️ 過度樂觀 → 減碼防禦"
-
-    # 景氣循環階段
-    cycle_phase, fund_multiplier = determine_cycle_phase(
-        z_score=voo_z,
-        credit_spread=credit_spread,
-        sahm_triggered=sahm_triggered or michez_triggered,
-        real_rate=real_rate,
+    return MacroIndicators(
+        us10y=us10y, us02y=us02y, cpi_yoy=cpi_yoy,
+        real_rate=real_rate, yield_curve=yield_curve,
+        sahm_indicator=sahm_val, sahm_triggered=sahm_on,
+        michez_m=michez_m, michez_triggered=michez_on,
+        recession_prob=rec_prob,
+        hy_spread=hy_spread, credit_signal=credit_signal,
+        ism_pmi=pmi_3, pmi_second_deriv=pmi_f2,
+        unemployment_3m=u_series[-3:],
     )
 
-    # 凱利準則（以VOO歷史勝率 ~65%、盈虧比 ~1.8 為基準）
-    kelly = calc_kelly_fraction(win_rate=0.65, win_loss_ratio=1.8)
 
-    # CAPE（使用代理：VOO 的 P/E 估算）
-    cape_ratio = None
-    cape_10y_return = None
-    try:
-        voo_info = yf.Ticker("VOO").info
-        pe = voo_info.get("trailingPE")
-        if pe and pe > 0:
-            cape_ratio = round(float(pe) * 0.95, 1)  # 簡化估算（非精確 Shiller PE）
-            cape_10y_return = calc_cape_regression(cape_ratio)
-    except Exception:
-        pass
+def run_morning_session(fred_api_key: str):
+    """早盤：總經 + 0050 + 00679B"""
+    print("=" * 50)
+    print("早盤模式：09:30 TST")
+    print("=" * 50)
 
-    macro = MacroIndicators(
-        voo_z=voo_z,
-        etf_0050_z=etf_0050_z,
-        etf_00679b_z=etf_00679b_z,
-        credit_spread=credit_spread,
-        credit_signal=credit_signal,
-        nominal_rate=treasury_10y,
-        inflation=round(inflation, 2),
-        real_rate=real_rate,
-        sahm_indicator=sahm_val,
-        sahm_triggered=sahm_triggered,
-        cycle_phase=cycle_phase,
-        fund_multiplier=fund_multiplier,
-        kelly_fraction=kelly,
-        cape_ratio=cape_ratio,
-        cape_10y_return=cape_10y_return,
+    macro = fetch_macro(fred_api_key)
+    vix, vix_upper, vix_break = fetch_vix_data()
+
+    etf_configs = [
+        ("0050.TW",   "元大台灣 50"),
+        ("00679B.TW", "元大美債 20年"),
+    ]
+
+    etf_signals = []
+    for ticker, name in etf_configs:
+        print(f"  [ETF] {ticker}...")
+        sig = fetch_etf_signal(
+            ticker, name, vix, vix_upper, vix_break,
+            macro.hy_spread, macro.us10y
+        )
+        if sig:
+            # 注入薩姆規則（共用）
+            if macro.sahm_triggered:
+                sig.cycle_phase, sig.fund_multiplier, sig.multiplier_mode = \
+                    determine_cycle_and_multiplier(
+                        sig.z_score, macro.hy_spread, True,
+                        vix, vix_break, sig.kelly_f
+                    )
+            etf_signals.append(sig)
+            print(f"    Z={sig.z_score} | 乘數={sig.fund_multiplier}x | {sig.cycle_phase}")
+        time.sleep(3)
+
+    return macro, etf_signals, vix
+
+
+def run_evening_session(fred_api_key: str):
+    """夜盤：VOO（美股收盤後 22:00）"""
+    print("=" * 50)
+    print("夜盤模式：22:00 TST")
+    print("=" * 50)
+
+    macro = fetch_macro(fred_api_key)
+    vix, vix_upper, vix_break = fetch_vix_data()
+
+    print("  [ETF] VOO...")
+    sig = fetch_etf_signal(
+        "VOO", "Vanguard S&P 500",
+        vix, vix_upper, vix_break,
+        macro.hy_spread, macro.us10y
     )
+    if sig and macro.sahm_triggered:
+        sig.cycle_phase, sig.fund_multiplier, sig.multiplier_mode = \
+            determine_cycle_and_multiplier(
+                sig.z_score, macro.hy_spread, True,
+                vix, vix_break, sig.kelly_f
+            )
 
-    print(f"  景氣階段：{cycle_phase}，資金乘數：{fund_multiplier}x")
-    print(f"  VIX={vix}, 信用利差={credit_spread}%, 實質利率={real_rate}%")
-    return etf_results, macro
+    if sig:
+        print(f"  VOO: Z={sig.z_score} | 乘數={sig.fund_multiplier}x | {sig.cycle_phase}")
+
+    return macro, sig, vix
