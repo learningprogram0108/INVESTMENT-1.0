@@ -411,12 +411,18 @@ def build_text_message(session: str, macro: MacroIndicators,
                        etf_signals: list, date_str: str) -> dict:
     if session == "morning":
         phases = [f"{s.ticker.replace('.TW','')}={s.multiplier_mode}" for s in etf_signals]
-        phase_str = "  ".join(phases)
-        recession_warn = "🚨 薩姆規則觸發！" if macro.sahm_triggered else ""
+        phase_str = "  ".join(phases) if phases else "資料擷取中"
+        # 薩姆警報併入文字訊息（不單獨佔一則，避免擠掉卡片）
+        if macro.sahm_triggered:
+            warn = (
+                f"\n🚨【衰退警報】薩姆={macro.sahm_indicator:.2f}%  "
+                f"衰退機率={macro.recession_prob:.0f}%"
+            )
+        else:
+            warn = ""
         text = (
-            f"☀️ {date_str} 早安\n\n"
-            f"{recession_warn}"
-            f"衰退機率：{macro.recession_prob:.0f}%  |  HY利差：{macro.hy_spread:.1f}%\n"
+            f"☀️ {date_str} 早安{warn}\n\n"
+            f"衰退機率 {macro.recession_prob:.0f}%  |  HY利差 {macro.hy_spread:.1f}%\n"
             f"{phase_str}\n\n"
             f"詳細指標請查看下方卡片。"
         )
@@ -431,7 +437,7 @@ def build_text_message(session: str, macro: MacroIndicators,
                 f"詳細分析請查看下方卡片。"
             )
         else:
-            text = f"🌙 {date_str} VOO 資料擷取失敗，請稍後查看。"
+            text = f"🌙 {date_str} VOO 資料暫時無法取得，請稍後手動確認。"
     return {"type": "text", "text": text}
 
 # ─────────────────────────────────────────────

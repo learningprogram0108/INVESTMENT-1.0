@@ -1,7 +1,8 @@
 """
-LINE 投資早報主程式 v2
-SESSION=morning → 09:30 TST 早盤（總經 + 0050 + 00679B）
-SESSION=evening → 22:00 TST 夜盤（VOO）
+LINE 投資早報主程式 v2.1
+修正：
+  - 薩姆警報改合併至文字訊息，不單獨佔一則（避免擠掉卡片）
+  - SESSION 正確傳入 evening 流程
 """
 
 import os, sys
@@ -20,7 +21,7 @@ def main():
     token    = os.environ.get("LINE_CHANNEL_TOKEN", "")
     user_id  = os.environ.get("LINE_USER_ID", "")
     fred_key = os.environ.get("FRED_API_KEY", "")
-    session  = os.environ.get("SESSION", "morning").lower()
+    session  = os.environ.get("SESSION", "morning").lower().strip()
 
     if not token or not user_id:
         print("[ERROR] LINE_CHANNEL_TOKEN 或 LINE_USER_ID 未設定")
@@ -35,19 +36,7 @@ def main():
     if session == "morning":
         macro, etf_signals, vix = run_morning_session(fred_key)
 
-        # 若薩姆觸發，額外推一則緊急警報
-        if macro.sahm_triggered:
-            messages.append({
-                "type": "text",
-                "text": (
-                    f"🚨【衰退警報】薩姆規則觸發！\n"
-                    f"指標值：{macro.sahm_indicator:.2f}%（閾值 0.5%）\n"
-                    f"衰退機率：{macro.recession_prob:.0f}%\n\n"
-                    f"建議：停止加碼，轉入 00679B 等待降息。"
-                )
-            })
-
-        # 訊息 1：文字問候
+        # 訊息 1：文字問候（薩姆警報併入文字，不單獨佔一則）
         messages.append(build_text_message("morning", macro, etf_signals, date_str))
         # 訊息 2：共用總經底層
         messages.append(build_macro_card(macro, date_str))
@@ -60,16 +49,25 @@ def main():
         if sig_bond:
             messages.append(build_bond_card(sig_bond, macro, date_str))
 
-    else:  # evening
+    elif session == "evening":
         macro, sig_voo, vix = run_evening_session(fred_key)
 
+        # 訊息 1：文字
         messages.append(build_text_message(
             "evening", macro,
             [sig_voo] if sig_voo else [], date_str
         ))
+        # 訊息 2：VOO 景氣面板
         if sig_voo:
             messages.append(build_etf_card(sig_voo, date_str, "evening"))
+        else:
+            print("[WARN] VOO 資料擷取失敗，只發文字訊息")
 
+    else:
+        print(f"[ERROR] 未知 SESSION={session}")
+        sys.exit(1)
+
+    print(f"準備推送 {len(messages)} 則訊息")
     ok = send_line_messages(messages[:5], token, user_id)
     sys.exit(0 if ok else 1)
 

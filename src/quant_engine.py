@@ -396,7 +396,7 @@ def fetch_etf_signal(ticker: str, name: str,
 
 def fetch_vix_data() -> tuple[float, float, bool]:
     """擷取 VIX 現值及布林突破狀態"""
-    hist = _yf_fetch("^VIX", period="6mo")
+    hist = _yf_fetch("^VIX", period="3mo")
     if hist.empty:
         return 20.0, 30.0, False
     vix_series = hist["Close"]
@@ -447,15 +447,15 @@ def fetch_treasury_yields() -> tuple[float, float]:
     us10y = 4.3
     us02y = 4.0
     try:
-        h10 = _yf_fetch("^TNX", "5d")
+        h10 = _yf_fetch("^TNX", "1mo")
         if not h10.empty:
             us10y = round(float(h10["Close"].iloc[-1]), 3)
     except Exception:
         pass
     try:
-        h02 = _yf_fetch("^IRX", "5d")
+        h02 = _yf_fetch("^IRX", "1mo")
         if not h02.empty:
-            us02y = round(float(h02["Close"].iloc[-1]) / 100 * 100, 3)
+            us02y = round(float(h02["Close"].iloc[-1]), 3)
     except Exception:
         pass
     return us10y, us02y
@@ -483,7 +483,11 @@ def fetch_macro(fred_api_key: str) -> MacroIndicators:
         cpi_yoy = 2.8
 
     # ISM PMI（製造業）
-    ism = fetch_fred("MANEMP", fred_api_key, 5)
+    # ISM Manufacturing PMI：正確 FRED series = ISMMAN
+    ism = fetch_fred("ISMMAN", fred_api_key, 5)
+    if not ism or len(ism) < 3:
+        # ISMMAN 若無資料改用 ISM_MAN_PMI
+        ism = fetch_fred("ISM_MAN_PMI", fred_api_key, 5)
     if not ism or len(ism) < 3:
         ism = [53.0, 52.0, 52.7]   # fallback
 
