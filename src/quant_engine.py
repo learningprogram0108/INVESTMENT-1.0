@@ -198,12 +198,21 @@ def _calc_etf_signal(ticker: str, name: str,
     kelly_f = calc_kelly(ticker)
     phase, mult, mode = determine_phase(z, hy_spread, sahm_triggered, vix, kelly_f)
 
-    # CAPE / ERP（VOO 用 S&P500 forward PE 約 22，0050 約 16，00679B 不適用）
-    pe_map = {"VOO": 22.0, "0050.TW": 16.0, "00679B.TW": None}
-    fpe = pe_map.get(ticker)
-    cape = round(fpe * 0.95, 1) if fpe else None
-    erp  = calc_erp(fpe, us10y) if fpe else None
-    pred = calc_cape_10y(cape) if cape else None
+    # CAPE / ERP：00679B 債券不適用，其他 ETF 從 Alpha Vantage 抓真實 PE
+    cape, erp, pred = None, None, None
+    if "00679B" not in ticker:
+        try:
+            from src.data_fetcher import fetch_cape_erp
+            # av_key 從 module level 取得（由 run_*_session 傳入）
+            # 這裡用 _av_key_cache（由外層注入）
+            if hasattr(_calc_etf_signal, "_av_key") and _calc_etf_signal._av_key:
+                cape, erp, pred = fetch_cape_erp(
+                    ticker.replace(".TW", ""),
+                    _calc_etf_signal._av_key,
+                    us10y
+                )
+        except Exception as e:
+            print(f"  [CAPE] {ticker}: {e}")
 
     return ETFSignal(
         ticker=ticker, name=name,
@@ -293,13 +302,24 @@ def run_morning_session(fred_key: str, av_key: str):
         ("00679B.TW", "元大美債 20年", "00679B"),
     ]
 
+    # 注入 av_key 供 _calc_etf_signal 使用
+    _calc_etf_signal._av_key = av_key
+
     etf_signals = []
     for ticker, name, stock_no in etf_configs:
-        print(f"  [ETF] {ticker} (TWSE)...")
+        print(f"  [ETF] {ticker}...")
+        # 先嘗試 TWSE，失敗改用 Alpha Vantage
         prices = twse_daily_close(stock_no, months=14)
-        if prices.empty or len(prices) < 5:
-            print(f"  [WARN] {ticker} 無資料")
-            continue
+        if prices.empty or len(prices) < 10:
+            print(f"  [ETF] {ticker} TWSE 無資料，改用 Alpha Vantage...")
+            time.sleep(13)
+            # AV 台股格式：0050.TW、00679B.TW
+            av_symbol = f"{stock_no}.TW"
+            prices = av_daily_close(av_symbol, av_key, days=300)
+            if prices.empty or len(prices) < 10:
+                print(f"  [WARN] {ticker} 所有來源均無資料，跳過")
+                continue
+
         current, prev = float(prices.iloc[-1]), float(prices.iloc[-2])
         sig = _calc_etf_signal(
             ticker, name, prices, current, prev,
@@ -322,6 +342,9 @@ def run_evening_session(fred_key: str, av_key: str):
     print("=" * 50)
 
     macro, vix, vix_upper, vix_break = fetch_macro(fred_key, av_key)
+
+    # 注入 av_key 供 _calc_etf_signal 使用
+    _calc_etf_signal._av_key = av_key
 
     print("  [ETF] VOO (Alpha Vantage)...")
     time.sleep(13)

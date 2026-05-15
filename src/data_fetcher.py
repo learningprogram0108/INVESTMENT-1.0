@@ -80,10 +80,11 @@ def av_quote(symbol: str, av_key: str) -> dict:
 # TWSE 台灣證交所（0050、00679B）
 # ─────────────────────────────────────────────
 
-def twse_daily_close(stock_no: str, months: int = 3) -> pd.Series:
+def twse_daily_close(stock_no: str, months: int = 14) -> pd.Series:
     """
     台灣證交所 Open API 擷取歷史日收盤價
-    免費、官方、不需 API Key
+    若 TWSE 被封鎖則回傳空 Series，由上層改用 Alpha Vantage
+    months=14 確保有足夠資料計算 EMA 200（約 200 交易日）
     """
     all_records = {}
     now = datetime.now()
@@ -95,15 +96,21 @@ def twse_daily_close(stock_no: str, months: int = 3) -> pd.Series:
             r = requests.get(
                 TWSE_BASE,
                 params={"stockNo": stock_no, "date": date_str},
-                headers={"User-Agent": "Mozilla/5.0"},
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                    "Accept": "application/json",
+                    "Referer": "https://www.twse.com.tw/",
+                },
                 timeout=10
             )
+            if r.status_code == 403:
+                print(f"  [TWSE] {stock_no} 403 封鎖，改用 Alpha Vantage")
+                return pd.Series(dtype=float)
             data = r.json()
             if data.get("stat") != "OK":
                 continue
             fields = data.get("fields", [])
             rows   = data.get("data", [])
-            # 找日期與收盤價欄位索引
             try:
                 date_idx  = fields.index("日期")
                 close_idx = fields.index("收盤價")
@@ -111,18 +118,18 @@ def twse_daily_close(stock_no: str, months: int = 3) -> pd.Series:
                 date_idx, close_idx = 0, 6
             for row in rows:
                 try:
-                    raw_date  = row[date_idx]   # 民國年，如 "115/01/02"
+                    raw_date  = row[date_idx]
                     raw_close = row[close_idx].replace(",", "")
-                    # 民國年轉西元
                     parts = raw_date.split("/")
                     year  = int(parts[0]) + 1911
                     date_key = f"{year}-{parts[1]}-{parts[2]}"
                     all_records[date_key] = float(raw_close)
                 except Exception:
                     continue
-            time.sleep(0.5)   # 避免打太快
+            time.sleep(0.8)
         except Exception as e:
             print(f"  [TWSE] {stock_no} {date_str}: {e}")
+            return pd.Series(dtype=float)
 
     if not all_records:
         return pd.Series(dtype=float)
@@ -145,12 +152,13 @@ def twse_latest_close(stock_no: str) -> tuple[float, float]:
 def fetch_vix_av(av_key: str) -> tuple[float, float, bool]:
     """
     VIX 從 Alpha Vantage 擷取
-    計算 20 日布林上軌，判斷是否突破
+    AV 免費版用 VIXY（ProShares VIX Short-Term Futures ETF）代理 VIX
+    VIXY 與 VIX 高度相關，可用於布林通道判斷
     """
-    series = av_daily_close("VIX", av_key, days=60)
+    # AV 免費版不支援 ^VIX index，改用 VIXY ETF 代理
+    series = av_daily_close("VIXY", av_key, days=60)
     if series.empty:
-        # fallback：用 CBOE VIX ETF (VIXY) 代理
-        series = av_daily_close("VIXY", av_key, days=60)
+        series = av_daily_close("UVXY", av_key, days=60)
     if series.empty:
         return 20.0, 30.0, False
 
@@ -210,26 +218,80 @@ def fetch_treasury_av(av_key: str) -> tuple[float, float]:
 def fetch_fred(series_id: str, api_key: str, limit: int = 24) -> list:
     if not api_key or api_key.lower() == "skip":
         return []
-    try:
-        r = requests.get(
-            "https://api.stlouisfed.org/fred/series/observations",
-            params={"series_id": series_id, "api_key": api_key,
-                    "file_type": "json", "sort_order": "desc",
-                    "limit": limit},
-            timeout=10
-        )
-        obs = r.json().get("observations", [])
-        vals = []
-        for o in reversed(obs):
-            try:
-                vals.append(float(o["value"]))
-            except (ValueError, KeyError):
-                pass
-        return vals
-    except Exception as e:
-        print(f"  [FRED] {series_id}: {e}")
-        return []
+    for attempt in range(3):
+        try:
+            if attempt > 0:
+                time.sleep(5 * attempt)
+            r = requests.get(
+                "https://api.stlouisfed.org/fred/series/observations",
+                params={"series_id": series_id, "api_key": api_key,
+                        "file_type": "json", "sort_order": "desc",
+                        "limit": limit},
+                headers={"User-Agent": "Mozilla/5.0"},
+                timeout=20
+            )
+            if not r.text or r.text.strip() == "":
+                print(f"  [FRED] {series_id} 空回應，重試...")
+                continue
+            obs = r.json().get("observations", [])
+            vals = []
+            for o in reversed(obs):
+                try:
+                    v = o.get("value", ".")
+                    if v != ".":
+                        vals.append(float(v))
+                except (ValueError, KeyError):
+                    pass
+            if vals:
+                return vals
+        except Exception as e:
+            print(f"  [FRED] {series_id} attempt {attempt+1}: {e}")
+    return []
 
+
+
+
+def av_company_overview(symbol: str, av_key: str) -> dict:
+    """
+    Alpha Vantage COMPANY_OVERVIEW
+    取得 ForwardPE、TrailingPE、PERatio 等估值數據
+    """
+    data = _av_get({
+        "function": "COMPANY_OVERVIEW",
+        "symbol": symbol,
+    }, av_key)
+    return data
+
+
+def fetch_cape_erp(symbol: str, av_key: str, rf: float) -> tuple:
+    """
+    從 AV OVERVIEW 抓取真實 PE，計算 CAPE 代理值與 ERP
+    回傳 (cape, erp, predicted_10y_return)
+    """
+    overview = av_company_overview(symbol, av_key)
+    if not overview:
+        return None, None, None
+
+    # 優先用 Forward PE，其次 Trailing PE
+    fpe = None
+    for key in ["ForwardPE", "TrailingPE", "PERatio"]:
+        val = overview.get(key)
+        if val and val != "None" and val != "-":
+            try:
+                fpe = float(val)
+                break
+            except ValueError:
+                pass
+
+    if not fpe or fpe <= 0:
+        return None, None, None
+
+    # CAPE 代理：用 Trailing PE × 0.95（保守估計）
+    from src.quant_engine import calc_erp, calc_cape_10y
+    cape = round(fpe * 0.95, 1)
+    erp  = calc_erp(fpe, rf)
+    pred = calc_cape_10y(cape)
+    return cape, erp, pred
 
 def fetch_hy_spread_fred(fred_key: str) -> float:
     data = fetch_fred("BAMLH0A0HYM2", fred_key, limit=5)
