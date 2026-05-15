@@ -1,0 +1,52 @@
+name: LINE 投資每日早報
+
+# 由 Cloudflare Worker 精準觸發，不使用 GitHub cron（避免延遲）
+on:
+  workflow_dispatch:
+    inputs:
+      triggered_at:
+        description: "觸發時間（TST，由 Cloudflare 帶入）"
+        required: false
+        default: ""
+
+jobs:
+  send-daily-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run LINE Bot
+        env:
+          LINE_CHANNEL_TOKEN: ${{ secrets.LINE_CHANNEL_TOKEN }}
+          LINE_USER_ID:       ${{ secrets.LINE_USER_ID }}
+          FRED_API_KEY:       ${{ secrets.FRED_API_KEY }}
+          TRIGGERED_AT:       ${{ inputs.triggered_at }}
+        run: python main.py
+
+      - name: Notify on failure
+        if: failure()
+        env:
+          LINE_CHANNEL_TOKEN: ${{ secrets.LINE_CHANNEL_TOKEN }}
+          LINE_USER_ID:       ${{ secrets.LINE_USER_ID }}
+        run: python -c "
+import os, requests, json
+token = os.environ['LINE_CHANNEL_TOKEN']
+uid   = os.environ['LINE_USER_ID']
+requests.post(
+  'https://api.line.me/v2/bot/message/push',
+  headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'},
+  json={'to': uid, 'messages': [{'type': 'text', 'text': '⚠️ 投資早報發送失敗，請檢查 GitHub Actions log。'}]}
+)
+"
