@@ -232,36 +232,45 @@ def determine_cycle_phase(
 # ─────────────────────────────────────────────
 
 def fetch_etf_data(ticker: str, name: str, period: str = "2y") -> Optional[ETFData]:
-    """擷取 ETF 歷史價格並計算 EMA Z-Score"""
-    try:
-        stock = yf.Ticker(ticker)
-        hist = stock.history(period=period)
-        if hist.empty or len(hist) < 50:
+    """擷取 ETF 歷史價格並計算 EMA Z-Score（含 retry）"""
+    import time
+    for attempt in range(3):
+        try:
+            if attempt > 0:
+                wait = 15 * attempt
+                print(f"[ETF] {ticker} rate limited，等待 {wait} 秒後重試...")
+                time.sleep(wait)
+            stock = yf.Ticker(ticker)
+            hist = stock.history(period=period)
+            if hist.empty or len(hist) < 50:
+                return None
+
+            prices = hist["Close"]
+            current = float(prices.iloc[-1])
+            prev = float(prices.iloc[-2])
+            change_pct = (current - prev) / prev * 100
+
+            n = min(200, len(prices) - 1)
+            ema_val = float(calc_ema(prices, n).iloc[-1])
+            z = calc_ema_zscore(prices, n)
+            signal = interpret_zscore(z)
+
+            return ETFData(
+                ticker=ticker,
+                name=name,
+                price=round(current, 2),
+                prev_close=round(prev, 2),
+                change_pct=round(change_pct, 2),
+                ema_200=round(ema_val, 2),
+                z_score=z,
+                signal=signal,
+            )
+        except Exception as e:
+            if "Too Many Requests" in str(e) and attempt < 2:
+                continue
+            print(f"[ETF 擷取失敗] {ticker}: {e}")
             return None
-
-        prices = hist["Close"]
-        current = float(prices.iloc[-1])
-        prev = float(prices.iloc[-2])
-        change_pct = (current - prev) / prev * 100
-
-        n = min(200, len(prices) - 1)
-        ema_val = float(calc_ema(prices, n).iloc[-1])
-        z = calc_ema_zscore(prices, n)
-        signal = interpret_zscore(z)
-
-        return ETFData(
-            ticker=ticker,
-            name=name,
-            price=round(current, 2),
-            prev_close=round(prev, 2),
-            change_pct=round(change_pct, 2),
-            ema_200=round(ema_val, 2),
-            z_score=z,
-            signal=signal,
-        )
-    except Exception as e:
-        print(f"[ETF 擷取失敗] {ticker}: {e}")
-        return None
+    return None
 
 
 def fetch_fred_series(series_id: str, api_key: str) -> list:

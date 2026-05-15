@@ -214,7 +214,7 @@ def build_weekday_flex(etfs: list, macro, date_str: str) -> dict:
                     "margin": "md", "contents": [
                         {
                             "type": "box", "layout": "vertical",
-                            "backgroundColor": "rgba(255,255,255,0.15)",
+                            "backgroundColor": "#1a5c40",
                             "cornerRadius": "6px", "paddingAll": "6px",
                             "contents": [
                                 {"type": "text", "text": macro.cycle_phase,
@@ -362,7 +362,7 @@ def build_saturday_flex(etfs: list, macro, date_str: str,
                     "type": "box", "layout": "horizontal", "margin": "md",
                     "contents": [{
                         "type": "box", "layout": "vertical",
-                        "backgroundColor": "rgba(255,255,255,0.15)",
+                        "backgroundColor": "#1a5c40",
                         "cornerRadius": "6px", "paddingAll": "6px",
                         "contents": [
                             {"type": "text", "text": macro.cycle_phase,
