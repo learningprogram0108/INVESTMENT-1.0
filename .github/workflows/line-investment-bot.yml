@@ -4,21 +4,27 @@ on:
   workflow_dispatch:
     inputs:
       session:
-        description: "morning（早盤）or evening（夜盤）"
+        description: "morning or evening"
         required: true
         default: "morning"
       triggered_at:
-        description: "觸發時間（由 Cloudflare 帶入）"
+        description: "觸發時間"
         required: false
         default: ""
+
+permissions:
+  contents: read
 
 jobs:
   send-report:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -34,6 +40,7 @@ jobs:
           LINE_CHANNEL_TOKEN: ${{ secrets.LINE_CHANNEL_TOKEN }}
           LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          AV_API_KEY: ${{ secrets.AV_API_KEY }}
           SESSION: ${{ inputs.session }}
           TRIGGERED_AT: ${{ inputs.triggered_at }}
         run: python main.py
