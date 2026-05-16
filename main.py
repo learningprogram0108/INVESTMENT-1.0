@@ -1,6 +1,5 @@
 """
-LINE 投資早報主程式 v4.1
-SESSION=report  → 07:30 TST 宏觀新聞摘要（Telegraph 發布）
+LINE 投資早報主程式 v4.2
 SESSION=morning → 09:30 TST 早盤（總經 + 0050 + 00679B）
 SESSION=evening → 22:00 TST 夜盤（VOO）
 """
@@ -16,45 +15,6 @@ from src.line_builder import (
     build_etf_card, build_bond_card,
     send_line_messages,
 )
-from src.report_fetcher import fetch_macro_report
-from src.report_builder import (
-    get_or_create_telegraph_token,
-    publish_to_telegraph,
-    build_report_line_messages,
-)
-
-
-def run_report_session(fred_key: str, av_key: str, date_str: str):
-    print("=" * 50)
-    print("報告模式：07:30 TST")
-    print("=" * 50)
-
-    # 1. 取得 ETF 狀態供 Smart Beta 使用
-    z_voo, hy_spread = 0.0, 4.5
-    try:
-        from src.data_fetcher import av_daily_close, fetch_hy_spread_fred
-        from src.quant_engine import calc_ema_zscore
-        import time
-        prices = av_daily_close("VOO", av_key, days=300)
-        z_voo  = calc_ema_zscore(prices) if not prices.empty else 0.0
-        time.sleep(13)
-        hy_spread = fetch_hy_spread_fred(fred_key)
-    except Exception as e:
-        print(f"  [WARN] ETF 狀態擷取失敗: {e}")
-
-    # 2. 擷取宏觀報告資料
-    report = fetch_macro_report(fred_key, hy_spread=hy_spread, z_voo=z_voo)
-
-    # 3. 發布到 Telegraph
-    report_url = ""
-    try:
-        token = get_or_create_telegraph_token("telegraph_token.txt")
-        report_url = publish_to_telegraph(report, token)
-    except Exception as e:
-        print(f"  [WARN] Telegraph 發布失敗: {e}")
-
-    # 4. 建構 LINE 訊息
-    return build_report_line_messages(report, report_url)
 
 
 def main():
@@ -74,10 +34,7 @@ def main():
 
     messages = []
 
-    if session == "report":
-        messages = run_report_session(fred_key, av_key, date_str)
-
-    elif session == "morning":
+    if session == "morning":
         if not av_key:
             print("[ERROR] AV_API_KEY 未設定")
             sys.exit(1)

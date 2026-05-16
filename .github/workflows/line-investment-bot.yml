@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       session:
-        description: "report / morning / evening"
+        description: "morning / evening"
         required: true
         default: "morning"
       triggered_at:
