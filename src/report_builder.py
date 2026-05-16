@@ -1,320 +1,290 @@
 """
-宏觀報告 GitHub Pages 生成器 + LINE 訊息建構器
-每日生成 docs/report/YYYY-MM-DD.md
-LINE 發送短摘要 + GitHub Pages 連結
+宏觀報告發布器 v2
+使用 Telegraph API 發布報告（免費、不需帳號、手機排版佳）
+LINE 發送短摘要 + Telegraph 連結
 """
 
-import os
+import requests
+import json
 from datetime import datetime, timezone, timedelta
 from src.report_fetcher import MacroReport
 
 TST = timezone(timedelta(hours=8))
 
+TELEGRAPH_API = "https://api.telegra.ph"
+
 
 # ─────────────────────────────────────────────
-# Markdown 報告生成（GitHub Pages）
+# Telegraph 帳號管理
 # ─────────────────────────────────────────────
+
+def get_or_create_telegraph_token(token_file: str = "telegraph_token.txt") -> str:
+        import os
+        if os.path.exists(token_file):
+                    with open(token_file, "r") as f:
+                                    token = f.read().strip()
+                                if token:
+                        return token
+
+                                        r = requests.post(
+                                            f"{TELEGRAPH_API}/createAccount",
+                                            json={
+                                                "short_name": "MacroReport",
+                                                "author_name": "宏觀經濟早報",
+                                                "author_url": "https://github.com",
+                                            },
+                                            timeout=15
+                                        )
+                                        data = r.json()
+                                        if data.get("ok"):
+                                                    token = data["result"]["access_token"]
+                                                    with open(token_file, "w") as f:
+                                                                    f.write(token)
+                                                                print(f"  [Telegraph] 新帳號建立成功")
+                                                    return token
+                                else:
+        raise Exception(f"Telegraph 帳號建立失敗: {data}")
+
+
+def _text(content: str) -> dict:
+        return {"tag": "p", "children": [content]}
+
+def _h3(content: str) -> dict:
+        return {"tag": "h3", "children": [content]}
+
+def _h4(content: str) -> dict:
+        return {"tag": "h4", "children": [content]}
+
+def _br() -> dict:
+        return {"tag": "br"}
+
+def _pre(content: str) -> dict:
+        return {"tag": "pre", "children": [content]}
 
 def _fmt(val, suffix="", decimals=1, na="N/A") -> str:
-    if val is None:
-        return na
-    return f"{val:.{decimals}f}{suffix}"
+        if val is None:
+                    return na
+                return f"{val:.{decimals}f}{suffix}"
 
-def _chg(now, prev, suffix="%") -> str:
-    if now is None or prev is None:
-        return ""
-    diff = now - prev
-    arrow = "↑" if diff > 0 else "↓"
-    return f"（{arrow}{abs(diff):.1f}{suffix}）"
+def _chg(now, prev) -> str:
+        if now is None or prev is None:
+                    return ""
+                diff = now - prev
+    arrow = "▲" if diff > 0 else "▼"
+    return f" {arrow}{abs(diff):.1f}"
 
-def _bar(pct: float, max_pct: float = 100, width: int = 20) -> str:
-    filled = round(pct / max_pct * width)
+def _bar(pct: float, width: int = 12) -> str:
+        filled = max(1, round(pct / 100 * width))
     return "█" * filled + "░" * (width - filled)
 
 
-def generate_markdown_report(report: MacroReport, repo: str) -> str:
-    """生成完整 Markdown 報告"""
-    now_tst = datetime.now(TST)
-    date_str = now_tst.strftime("%Y/%m/%d")
+def build_telegraph_nodes(report: MacroReport) -> list:
+        now_tst = datetime.now(TST)
+    weekday = ["週一","週二","週三","週四","週五","週六","週日"][now_tst.weekday()]
+    nodes = []
+
+    nodes.append(_text(f"📅 {report.date}（{weekday}）· 07:30 TST · FRED / Atlanta Fed / NY Fed"))
+    nodes.append(_br())
+    nodes.append(_h3(f"📌 {report.top_event_title}"))
+    nodes.append(_text(report.top_event_body))
+    nodes.append(_text("標籤：" + " · ".join(report.top_event_tags)))
+    nodes.append(_br())
+
+    nodes.append(_h3("📊 總體經濟數據"))
+    cpi_chg = _chg(report.cpi_latest, report.cpi_prev)
+    u_chg   = _chg(report.unemployment, report.unemployment_prev)
+    data_lines = [
+                f"CPI 年增率（美）：{_fmt(report.cpi_latest)}%{cpi_chg}",
+            f"核心 CPI：{_fmt(report.cpi_core)}%",
+                f"PCE 年增率：{_fmt(report.pce_latest)}%",
+                f"失業率：{_fmt(report.unemployment)}%{u_chg}",
+                f"非農就業月增：{_fmt(report.nonfarm_payrolls, 'K', 0)}",
+                f"聯邦基金利率：{_fmt(report.fed_funds_rate)}%",
+    ]
+    nodes.append(_pre("\n".join(data_lines)))
+    nodes.append(_br())
+
+    nodes.append(_h3("🏦 專業預測機構"))
+    gdp_chg = _chg(report.gdpnow, report.gdpnow_prev)
+        forecast_lines = [
+            f"Atlanta Fed GDPNow：{_fmt(report.gdpnow)}%{gdp_chg}",
+                    f"Cleveland Fed CPI 預測：{_fmt(report.cleveland_cpi_forecast)}%",
+                    f"NY Fed 衰退機率：{_fmt(report.ny_fed_recession_prob)}%",
+                    f"降息機率（代理值）：{_fmt(report.rate_cut_prob)}%",
+        ]
+    nodes.append(_pre("\n".join(forecast_lines)))
+    nodes.append(_br())
+
+    nodes.append(_h3("⚖️ Smart Beta 動態配置建議"))
+    nodes.append(_text(f"調整理由：{report.allocation_reason}"))
+    beta_lines = [
+                f"VOO   （美股S&P500） {_bar(report.voo_weight)} {report.voo_weight:.0f}%",
+                f"0050  （台灣50）     {_bar(report.etf_0050_weight)} {report.etf_0050_weight:.0f}%",
+                f"00679B（美債20年）   {_bar(report.etf_00679b_weight)} {report.etf_00679b_weight:.0f}%",
+    ]
+    nodes.append(_pre("\n".join(beta_lines)))
+    nodes.append(_br())
+
+    nodes.append(_h3("🔍 深度分析"))
+    nodes.append(_h4("Fed 政策展望"))
+    ffr = report.fed_funds_rate
+    cpi = report.cpi_latest
+    u   = report.unemployment
+    gdp = report.gdpnow
+    cpi_comment = ("持續下行，有助建立降息信心" if (cpi or 3) < 3.0 else "仍高於 Fed 2% 目標，降息時程受限")
+    u_comment   = ("勞動市場韌性強，Fed 不急於降息" if (u or 4) < 4.0 else "開始降溫，有利降息空間")
+    gdp_comment = ("超預期強勁" if (gdp or 2) > 2.5 else "成長放緩" if (gdp or 2) < 1.5 else "溫和擴張")
+    analysis_lines = [
+                f"聯邦基金利率：{_fmt(ffr)}%",
+                f"CPI 走向：{_fmt(cpi)}%，{cpi_comment}",
+                f"就業市場：失業率 {_fmt(u)}%，{u_comment}",
+                f"經濟成長：GDPNow {_fmt(gdp)}%，{gdp_comment}",
+]
+    nodes.append(_pre("\n".join(analysis_lines)))
+    nodes.append(_br())
+
+    nodes.append(_h4("投資含義"))
+    nodes.append(_text(f"VOO（{report.voo_weight:.0f}%）：" + ("估值偏高，維持基礎倉位，等待回調" if report.voo_weight < 35 else "指標正常，維持定期扣款")))
+    nodes.append(_text(f"0050（{report.etf_0050_weight:.0f}%）：" + ("受惠全球風險偏好改善" if report.etf_0050_weight >= 30 else "相對美股具防禦優勢")))
+    nodes.append(_text(f"00679B（{report.etf_00679b_weight:.0f}%）：" + ("通膨下行 + 衰退機率上升，美債為當前最佳避險工具" if report.etf_00679b_weight > 40 else "維持基礎防禦倉位")))
+    nodes.append(_br())
+    nodes.append(_text("⚠️ 本報告由量化系統自動生成，所有建議僅供參考，不構成投資建議。"))
+    nodes.append(_text(f"生成時間：{now_tst.strftime('%Y-%m-%d %H:%M')} TST"))
+
+    return nodes
+
+
+def publish_to_telegraph(report: MacroReport, token: str) -> str:
+        now_tst = datetime.now(TST)
+        title = f"宏觀早報 {report.date}"
+        nodes = build_telegraph_nodes(report)
+        r = requests.post(
+            f"{TELEGRAPH_API}/createPage",
+            json={
+                "access_token": token,
+                "title": title,
+                "author_name": "宏觀經濟早報",
+                "content": nodes,
+                "return_content": False,
+            },
+            timeout=20
+        )
+        data = r.json()
+        if data.get("ok"):
+                    url = data["result"]["url"]
+                    print(f"  [Telegraph] 報告已發布：{url}")
+                    return url
+else:
+        print(f"  [Telegraph] 發布失敗：{data}")
+            return ""
+
+
+def build_report_line_messages(report: MacroReport, report_url: str) -> list:
+        now_tst = datetime.now(TST)
     weekday = ["週一","週二","週三","週四","週五","週六","週日"][now_tst.weekday()]
 
-    # Smart Beta 長條圖
-    voo_bar  = _bar(report.voo_weight, 100, 15)
-    tw_bar   = _bar(report.etf_0050_weight, 100, 15)
-    bond_bar = _bar(report.etf_00679b_weight, 100, 15)
+    def _v(val, suffix="", dec=1):
+                return f"{val:.{dec}f}{suffix}" if val is not None else "N/A"
 
-    md = f"""# 宏觀經濟每日早報
-
-**{date_str}（{weekday}）** · 發布時間：07:30 TST · 資料來源：FRED / Atlanta Fed / NY Fed
-
----
-
-## 今日核心事件
-
-### {report.top_event_title}
-
-{report.top_event_body}
-
-**標籤：** {" · ".join([f"`{t}`" for t in report.top_event_tags])}
-
----
-
-## 總體經濟數據儀表板
-
-| 指標 | 最新值 | 前期值 | 變化 |
-|------|--------|--------|------|
-| CPI 年增率（美國）| {_fmt(report.cpi_latest)}% | {_fmt(report.cpi_prev)}% | {_chg(report.cpi_latest, report.cpi_prev)} |
-| 核心 CPI | {_fmt(report.cpi_core)}% | — | — |
-| PCE 年增率 | {_fmt(report.pce_latest)}% | — | — |
-| 失業率 | {_fmt(report.unemployment)}% | {_fmt(report.unemployment_prev)}% | {_chg(report.unemployment, report.unemployment_prev)} |
-| 非農就業月增 | {_fmt(report.nonfarm_payrolls, "K", 0)} | — | — |
-| 聯邦基金利率 | {_fmt(report.fed_funds_rate)}% | — | — |
-
----
-
-## 專業預測機構更新
-
-| 機構 | 指標 | 最新預測 | 說明 |
-|------|------|----------|------|
-| Atlanta Fed | GDPNow（本季 GDP）| {_fmt(report.gdpnow)}% {_chg(report.gdpnow, report.gdpnow_prev)} | 即時更新，每週三 |
-| Cleveland Fed | 未來 1 年 CPI 預期 | {_fmt(report.cleveland_cpi_forecast)}% | 基於市場與調查合成 |
-| NY Fed | 12 個月衰退機率 | {_fmt(report.ny_fed_recession_prob)}% | 基於殖利率曲線模型 |
-| 市場隱含 | 降息機率（代理值）| {_fmt(report.rate_cut_prob)}% | CPI/FFR 差值推算 |
-
----
-
-## Smart Beta 動態資產配置建議
-
-> **調整理由：** {report.allocation_reason}
-
-```
-VOO   （美股 S&P500）{voo_bar} {report.voo_weight:.0f}%
-0050  （台灣 50）    {tw_bar} {report.etf_0050_weight:.0f}%
-00679B（美債 20年）  {bond_bar} {report.etf_00679b_weight:.0f}%
-```
-
-### 因子評分說明
-
-| Smart Beta 因子 | 訊號方向 | 影響 |
-|----------------|---------|------|
-| 價值（CAPE/ERP）| 估值過高 | 降低 VOO 權重 |
-| 動能（EMA Z-Score）| 依當日計算 | 動態調整 |
-| 通膨（CPI 趨勢）| CPI {_fmt(report.cpi_latest)}% | {"降息有利美債" if (report.cpi_latest or 3) < 3.0 else "通膨仍高，債券承壓"} |
-| 衰退風險（NY Fed）| {_fmt(report.ny_fed_recession_prob)}% | {"防禦偏重" if (report.ny_fed_recession_prob or 20) > 30 else "成長偏重"} |
-| 信用週期（HY 利差）| 依當日計算 | 動態調整 |
-
----
-
-## 深度分析
-
-### Fed 政策展望
-
-聯邦基金利率目前為 **{_fmt(report.fed_funds_rate)}%**。根據今日數據與市場預期：
-
-- **CPI 走向：** {_fmt(report.cpi_latest)}%，{"持續下行有助建立降息信心" if (report.cpi_latest or 3) < 3.0 else "仍高於 Fed 2% 目標，降息時程受限"}
-- **就業市場：** 失業率 {_fmt(report.unemployment)}%，{"勞動市場韌性強，Fed 不急於降息" if (report.unemployment or 4) < 4.0 else "開始降溫，有利降息空間"}
-- **經濟成長：** GDPNow {_fmt(report.gdpnow)}%，{"超預期強勁" if (report.gdpnow or 2) > 2.5 else "成長放緩" if (report.gdpnow or 2) < 1.5 else "溫和擴張"}
-
-### 投資含義
-
-基於上述分析，本日建議：
-
-1. **VOO（{report.voo_weight:.0f}%）：** {"估值偏高，建議維持基礎倉位，等待回調再加碼" if report.voo_weight < 35 else "指標正常，維持定期扣款"}
-2. **0050（{report.etf_0050_weight:.0f}%）：** 台股受惠於{"全球風險偏好改善" if report.etf_0050_weight >= 30 else "美股走弱的相對優勢"}
-3. **00679B（{report.etf_00679b_weight:.0f}%）：** {"通膨下行 + 衰退機率上升，美債為當前最佳避險工具" if report.etf_00679b_weight > 40 else "維持基礎防禦倉位"}
-
----
-
-*本報告由量化系統自動生成，所有建議僅供參考，不構成投資建議。*
-*資料來源：FRED、Atlanta Fed、NY Fed（均為公開免費資料）*
-*生成時間：{now_tst.strftime("%Y-%m-%d %H:%M")} TST*
-"""
-    return md
-
-
-def save_markdown_report(report: MacroReport, repo: str = "") -> str:
-    """
-    將報告存為 docs/report/YYYY-MM-DD.md
-    GitHub Pages 會自動渲染為網頁
-    回傳檔案路徑
-    """
-    now_tst = datetime.now(TST)
-    filename = now_tst.strftime("%Y-%m-%d") + ".md"
-
-    # 建立目錄
-    os.makedirs("docs/report", exist_ok=True)
-
-    # 寫入 Markdown
-    md_content = generate_markdown_report(report, repo)
-    filepath = f"docs/report/{filename}"
-    with open(filepath, "w", encoding="utf-8") as f:
-        f.write(md_content)
-
-    # 更新 docs/report/index.md（最新報告重導向）
-    latest_content = f"""# 最新宏觀經濟報告
-
-自動跳轉至今日報告...
-
-[點此查看 {now_tst.strftime('%Y/%m/%d')} 報告](./{filename})
-
----
-
-{md_content}
-"""
-    with open("docs/report/index.md", "w", encoding="utf-8") as f:
-        f.write(latest_content)
-
-    print(f"  [REPORT] 報告已存至 {filepath}")
-    return filepath
-
-
-# ─────────────────────────────────────────────
-# LINE 訊息建構
-# ─────────────────────────────────────────────
-
-def build_report_line_messages(report: MacroReport, pages_url: str) -> list:
-    """
-    建構 LINE 訊息：短摘要文字 + Flex 卡片 + 連結
-    """
-    now_tst = datetime.now(TST)
-    weekday = ["週一","週二","週三","週四","週五","週六","週日"][now_tst.weekday()]
-
-    # ── 訊息 1：文字摘要（簡短）──
+    rec_str = f"{report.ny_fed_recession_prob:.0f}%" if report.ny_fed_recession_prob else "N/A"
+    gdp_str = f"{report.gdpnow:.1f}%" if report.gdpnow else "N/A"
     cpi_str = f"{report.cpi_latest:.1f}%" if report.cpi_latest else "N/A"
     u_str   = f"{report.unemployment:.1f}%" if report.unemployment else "N/A"
-    gdp_str = f"{report.gdpnow:.1f}%" if report.gdpnow else "N/A"
-    rec_str = f"{report.ny_fed_recession_prob:.0f}%" if report.ny_fed_recession_prob else "N/A"
 
     text_msg = {
-        "type": "text",
-        "text": (
+                "type": "text",
+                "text": (
             f"📰 {report.date}（{weekday}）宏觀早報\n\n"
-            f"【今日焦點】{report.top_event_title}\n\n"
-            f"CPI {cpi_str}  失業率 {u_str}\n"
-            f"GDPNow {gdp_str}  衰退機率 {rec_str}\n\n"
-            f"完整分析與配置建議請點下方連結 👇"
-        )
+                                f"【今日焦點】{report.top_event_title}\n\n"
+                                f"CPI {cpi_str}  失業率 {u_str}\n"
+                                f"GDPNow {gdp_str}  衰退機率 {rec_str}\n\n"
+                                f"完整報告請點下方卡片連結 👇"
+                )
     }
-
-    # ── 訊息 2：Flex 卡片 ──
-    def _val(v, suffix="", dec=1):
-        return f"{v:.{dec}f}{suffix}" if v is not None else "N/A"
-
-    def _chg_label(now, prev):
-        if now is None or prev is None:
-            return ""
-        diff = now - prev
-        c = "#E24B4A" if diff > 0 else "#1D9E75"
-        sym = "▲" if diff > 0 else "▼"
-        return {"type": "text", "text": f"{sym}{abs(diff):.1f}", "size": "xxs", "color": c}
 
     def row(label, value, color="#333333"):
-        return {
-            "type": "box", "layout": "horizontal",
-            "contents": [
-                {"type": "text", "text": label, "size": "xxs", "color": "#888888", "flex": 5},
-                {"type": "text", "text": value,  "size": "xxs", "color": color,    "flex": 4,
-                 "align": "end", "weight": "bold"},
-            ],
-            "paddingTop": "3px", "paddingBottom": "3px",
-        }
+                return {
+                                "type": "box", "layout": "horizontal",
+                                "contents": [
+                                                    {"type": "text", "text": label, "size": "xxs", "color": "#888888", "flex": 5},
+                                                    {"type": "text", "text": value, "size": "xxs", "color": color, "flex": 4, "align": "end", "weight": "bold"},
+                                ],
+                                "paddingTop": "3px", "paddingBottom": "3px",
+                }
 
     def sep():
-        return {"type": "separator", "margin": "sm", "color": "#eeeeee"}
+                return {"type": "separator", "margin": "sm", "color": "#eeeeee"}
 
     def section(label):
-        return {"type": "text", "text": label, "size": "xxs",
-                "color": "#aaaaaa", "weight": "bold", "margin": "md"}
+                return {
+                                "type": "box", "layout": "vertical", "margin": "md",
+                                "contents": [
+                                                    {"type": "text", "text": label, "size": "xxs", "color": "#aaaaaa", "weight": "bold"}
+                                ]
+                }
 
-    # Smart Beta 視覺長條
     def beta_row(name, pct, color):
-        bar_filled = max(1, round(pct / 100 * 10))
-        bar = "▓" * bar_filled + "░" * (10 - bar_filled)
-        return {
-            "type": "box", "layout": "horizontal",
-            "contents": [
-                {"type": "text", "text": name,  "size": "xxs", "color": "#444", "flex": 3},
-                {"type": "text", "text": bar,   "size": "xxs", "color": color,  "flex": 5},
-                {"type": "text", "text": f"{pct:.0f}%", "size": "xxs",
-                 "color": color, "weight": "bold", "flex": 2, "align": "end"},
-            ],
-            "paddingTop": "2px", "paddingBottom": "2px",
-        }
+                bar = "▓" * max(1, round(pct/100*10)) + "░" * (10 - max(1, round(pct/100*10)))
+                return {
+                    "type": "box", "layout": "horizontal",
+                    "contents": [
+                        {"type": "text", "text": name, "size": "xxs", "color": "#444", "flex": 3},
+                        {"type": "text", "text": bar, "size": "xxs", "color": color, "flex": 5},
+                        {"type": "text", "text": f"{pct:.0f}%", "size": "xxs", "color": color, "weight": "bold", "flex": 2, "align": "end"},
+                    ],
+                    "paddingTop": "2px", "paddingBottom": "2px",
+                }
 
-    rec_color = ("#E24B4A" if (report.ny_fed_recession_prob or 0) > 35
-                 else "#EF9F27" if (report.ny_fed_recession_prob or 0) > 20
-                 else "#1D9E75")
-    cpi_color = ("#1D9E75" if (report.cpi_latest or 3) < 2.5
-                 else "#EF9F27" if (report.cpi_latest or 3) < 3.5
-                 else "#E24B4A")
+    cpi_c = ("#1D9E75" if (report.cpi_latest or 3) < 2.5 else "#EF9F27" if (report.cpi_latest or 3) < 3.5 else "#E24B4A")
+    rec_c = ("#E24B4A" if (report.ny_fed_recession_prob or 0) > 35 else "#EF9F27" if (report.ny_fed_recession_prob or 0) > 20 else "#1D9E75")
+    gdp_c = "#1D9E75" if (report.gdpnow or 2) > 2.0 else "#EF9F27"
+
+    if report_url:
+                link_button = [{"type": "button", "action": {"type": "uri", "label": "查看完整報告", "uri": report_url}, "style": "primary", "color": "#1a3a5c", "margin": "md", "height": "sm"}]
+else:
+            link_button = [{"type": "text", "text": "⚠️ 報告連結暫時無法生成", "size": "xxs", "color": "#888888", "margin": "md", "align": "center"}]
 
     bubble = {
-        "type": "bubble", "size": "giga",
-        "header": {
-            "type": "box", "layout": "vertical",
-            "backgroundColor": "#1a3a5c", "paddingAll": "12px",
-            "contents": [
-                {"type": "text", "text": "宏觀經濟每日早報",
-                 "color": "#ffffff", "size": "sm", "weight": "bold"},
-                {"type": "text", "text": f"{report.date}  ·  07:30 TST  ·  FRED / Atlanta / NY Fed",
-                 "color": "#cccccc", "size": "xxs", "margin": "xs"},
-                {"type": "text", "text": f"📌 {report.top_event_title}",
-                 "color": "#7fb8f0", "size": "xs", "margin": "sm", "wrap": True},
-            ]
-        },
-        "body": {
-            "type": "box", "layout": "vertical",
-            "paddingAll": "12px", "spacing": "none",
-            "contents": [
-                section("總經數據"),
-                row("CPI 年增率（美）", _val(report.cpi_latest, "%"), cpi_color),
-                row("核心 CPI",         _val(report.cpi_core,   "%"), "#555"),
-                row("PCE 年增率",        _val(report.pce_latest, "%"), "#555"),
-                row("失業率",            _val(report.unemployment, "%"), "#555"),
-                row("非農就業月增",       _val(report.nonfarm_payrolls, "K", 0), "#555"),
-                row("聯邦基金利率",       _val(report.fed_funds_rate, "%"), "#555"),
-                sep(),
-                section("專業預測機構"),
-                row("GDPNow（本季）",    _val(report.gdpnow, "%"),
-                    "#1D9E75" if (report.gdpnow or 2) > 2.0 else "#EF9F27"),
-                row("Cleveland CPI 預測", _val(report.cleveland_cpi_forecast, "%"), cpi_color),
-                row("NY Fed 衰退機率",    _val(report.ny_fed_recession_prob, "%"), rec_color),
-                row("降息機率（代理）",    _val(report.rate_cut_prob, "%"), "#378ADD"),
-                sep(),
-                section("Smart Beta 配置建議"),
-                beta_row("VOO",    report.voo_weight,         "#378ADD"),
-                beta_row("0050",   report.etf_0050_weight,    "#1D9E75"),
-                beta_row("00679B", report.etf_00679b_weight,  "#EF9F27"),
-                {
-                    "type": "box", "layout": "vertical",
-                    "backgroundColor": "#f0faf5", "cornerRadius": "6px",
-                    "paddingAll": "7px", "margin": "sm",
-                    "contents": [
-                        {"type": "text", "text": f"調整理由：{report.allocation_reason}",
-                         "size": "xxs", "color": "#085041", "wrap": True},
-                    ]
+                "type": "bubble", "size": "giga",
+                "header": {
+                                "type": "box", "layout": "vertical",
+                                "backgroundColor": "#1a3a5c", "paddingAll": "12px",
+                                "contents": [
+                                                    {"type": "text", "text": "宏觀經濟每日早報", "color": "#ffffff", "size": "sm", "weight": "bold"},
+                                                    {"type": "text", "text": f"{report.date}  ·  07:30 TST", "color": "#cccccc", "size": "xxs", "margin": "xs"},
+                                                    {"type": "text", "text": f"📌 {report.top_event_title}", "color": "#7fb8f0", "size": "xs", "margin": "sm", "wrap": True},
+                                ]
                 },
-                sep(),
-                {
-                    "type": "button",
-                    "action": {
-                        "type": "uri",
-                        "label": "查看完整報告與圖表",
-                        "uri": pages_url
-                    },
-                    "style": "primary",
-                    "color": "#1a3a5c",
-                    "margin": "md",
-                    "height": "sm",
+                "body": {
+                                "type": "box", "layout": "vertical",
+                                "paddingAll": "12px", "spacing": "none",
+                                "contents": [
+                                                    section("總經數據"),
+                                                    row("CPI 年增率（美）", _v(report.cpi_latest, "%"), cpi_c),
+                                                    row("核心 CPI", _v(report.cpi_core, "%"), "#555"),
+                                                    row("失業率", _v(report.unemployment, "%"), "#555"),
+                                                    row("非農就業月增", _v(report.nonfarm_payrolls, "K", 0), "#555"),
+                                                    row("聯邦基金利率", _v(report.fed_funds_rate, "%"), "#555"),
+                                                    sep(),
+                                                    section("專業預測機構"),
+                                                    row("GDPNow（本季）", _v(report.gdpnow, "%"), gdp_c),
+                                                    row("Cleveland CPI 預測", _v(report.cleveland_cpi_forecast, "%"), cpi_c),
+                                                    row("NY Fed 衰退機率", _v(report.ny_fed_recession_prob, "%"), rec_c),
+                                                    row("降息機率（代理）", _v(report.rate_cut_prob, "%"), "#378ADD"),
+                                                    sep(),
+                                                    section("Smart Beta 配置"),
+                                                    beta_row("VOO", report.voo_weight, "#378ADD"),
+                                                    beta_row("0050", report.etf_0050_weight, "#1D9E75"),
+                                                    beta_row("00679B", report.etf_00679b_weight, "#EF9F27"),
+                                                    {
+                                                                            "type": "box", "layout": "vertical",
+                                                                            "backgroundColor": "#f0faf5", "cornerRadius": "6px",
+                                                                            "paddingAll": "7px", "margin": "sm",
+                                                                            "contents": [{"type": "text", "text": report.allocation_reason, "size": "xxs", "color": "#085041", "wrap": True}]
+                                                    },
+                                                    *link_button,
+                                ]
                 }
-            ]
-        }
     }
 
-    flex_msg = {
-        "type": "flex",
-        "altText": f"宏觀早報 {report.date}",
-        "contents": bubble
-    }
-
-    return [text_msg, flex_msg]
+    return [text_msg, {"type": "flex", "altText": f"宏觀早報 {report.date}", "contents": bubble}]
