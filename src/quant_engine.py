@@ -309,8 +309,8 @@ def run_morning_session(fred_key: str, av_key: str):
     etf_signals = []
     for ticker, name, stock_no in etf_configs:
         print(f"  [ETF] {ticker}...")
-        # 1. 優先 TWSE（24 個月 ≈ 480 筆，確保 EMA200 暖機足夠）
-        prices = twse_daily_close(stock_no, months=24)
+        # 1. 優先 TWSE（14 個月 ≈ 280 筆，stooq fallback 補足至 500 筆）
+        prices = twse_daily_close(stock_no, months=14)
         if prices.empty or len(prices) < 50:
             # 2. Stooq 備援（免費、支援台股 ETF）
             print(f"  [ETF] {ticker} TWSE 無資料，改用 Stooq...")
@@ -350,9 +350,14 @@ def run_evening_session(fred_key: str, av_key: str):
     # 注入 av_key 供 _calc_etf_signal 使用
     _calc_etf_signal._av_key = av_key
 
-    print("  [ETF] VOO (Alpha Vantage)...")
-    time.sleep(13)
-    prices = av_daily_close("VOO", av_key, days=300)
+    # 1. 優先 Stooq（免費、無配額限制）
+    print("  [ETF] VOO (Stooq)...")
+    prices = stooq_daily_close("voo.us", days=400)
+    if prices.empty or len(prices) < 5:
+        # 2. Stooq 失敗才用 Alpha Vantage
+        print("  [ETF] VOO Stooq 無資料，改用 Alpha Vantage...")
+        time.sleep(13)
+        prices = av_daily_close("VOO", av_key, days=400)
     if prices.empty or len(prices) < 5:
         print("  [WARN] VOO 無資料")
         return macro, None, vix

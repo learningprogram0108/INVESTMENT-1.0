@@ -30,9 +30,9 @@ def _av_get(params: dict, av_key: str, retries: int = 3) -> dict:
             r = requests.get(AV_BASE, params=params, timeout=15)
             data = r.json()
             if "Note" in data or "Information" in data:
-                print(f"  [AV] rate limit，等待 60s...")
-                time.sleep(60)
-                continue
+                # 日配額不會在 60s 內恢復，直接跳過節省時間
+                print(f"  [AV] rate limit（日配額已滿），跳過")
+                return {}
             return data
         except Exception as e:
             print(f"  [AV ERR] {e}")
@@ -180,33 +180,43 @@ def stooq_daily_close(symbol: str, days: int = 500) -> pd.Series:
 
 
 # ─────────────────────────────────────────────
-# Alpha Vantage VIX
+# VIX
 # ─────────────────────────────────────────────
 
-def fetch_vix_av(av_key: str) -> tuple[float, float, bool]:
-    """
-    VIX 從 Alpha Vantage 擷取
-    AV 免費版用 VIXY（ProShares VIX Short-Term Futures ETF）代理 VIX
-    VIXY 與 VIX 高度相關，可用於布林通道判斷
-    """
-    # AV 免費版不支援 ^VIX index，改用 VIXY ETF 代理
-    series = av_daily_close("VIXY", av_key, days=60)
-    if series.empty:
-        series = av_daily_close("UVXY", av_key, days=60)
-    if series.empty:
-        return 20.0, 30.0, False
-
+def _vix_bollinger(series: pd.Series) -> tuple[float, float, bool]:
+    """計算 VIX 布林上軌與突破訊號"""
     current = float(series.iloc[-1])
     if len(series) >= 20:
-        sma20  = float(series.rolling(20).mean().iloc[-1])
-        std20  = float(series.rolling(20).std().iloc[-1])
-        upper  = sma20 + 2 * std20
+        sma20    = float(series.rolling(20).mean().iloc[-1])
+        std20    = float(series.rolling(20).std().iloc[-1])
+        upper    = sma20 + 2 * std20
         bb_break = current > upper
     else:
         upper    = current * 1.3
         bb_break = False
-
     return round(current, 2), round(upper, 2), bb_break
+
+
+def fetch_vix_av(av_key: str) -> tuple[float, float, bool]:
+    """
+    VIX 擷取：先走 Stooq（真實 ^VIX），失敗才用 AV VIXY 代理
+    """
+    # 1. Stooq 直接取 CBOE VIX 指數
+    series = stooq_daily_close("^vix", days=60)
+    if not series.empty:
+        print(f"  [VIX] Stooq ^vix 取得 {len(series)} 筆")
+        return _vix_bollinger(series)
+
+    # 2. AV VIXY 代理（AV 免費版不支援 ^VIX index）
+    print("  [VIX] Stooq 失敗，改用 AV VIXY...")
+    series = av_daily_close("VIXY", av_key, days=60)
+    if series.empty:
+        series = av_daily_close("UVXY", av_key, days=60)
+    if series.empty:
+        print("  [VIX] 所有來源失敗，使用預設值 20.0")
+        return 20.0, 30.0, False
+
+    return _vix_bollinger(series)
 
 
 # ─────────────────────────────────────────────
