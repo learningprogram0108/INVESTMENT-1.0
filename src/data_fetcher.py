@@ -14,6 +14,7 @@ import numpy as np
 
 AV_BASE = "https://www.alphavantage.co/query"
 TWSE_BASE = "https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY"
+STOOQ_BASE = "https://stooq.com/q/d/l/"
 
 
 # ─────────────────────────────────────────────
@@ -40,24 +41,18 @@ def _av_get(params: dict, av_key: str, retries: int = 3) -> dict:
     return {}
 
 
-def av_daily_close(symbol: str, av_key: str, days: int = 300) -> pd.Series:
-    """Alpha Vantage 每日收盤價 → pd.Series（時間升冪）"""
+def av_daily_close(symbol: str, av_key: str, days: int = 400) -> pd.Series:
+    """
+    Alpha Vantage 每日收盤價 → pd.Series（時間升冪）
+    使用 full 輸出確保有 400+ 筆，讓 EMA200 有足夠暖機資料
+    """
     data = _av_get({
         "function": "TIME_SERIES_DAILY",
         "symbol": symbol,
-        "outputsize": "compact",   # 最近 100 筆，compact 較快
+        "outputsize": "full",
     }, av_key)
 
     ts = data.get("Time Series (Daily)", {})
-    if not ts:
-        # 嘗試 full 模式
-        data = _av_get({
-            "function": "TIME_SERIES_DAILY",
-            "symbol": symbol,
-            "outputsize": "full",
-        }, av_key)
-        ts = data.get("Time Series (Daily)", {})
-
     if not ts:
         print(f"  [AV] {symbol} 無資料")
         return pd.Series(dtype=float)
@@ -143,6 +138,45 @@ def twse_latest_close(stock_no: str) -> tuple[float, float]:
     if len(series) < 2:
         return 0.0, 0.0
     return float(series.iloc[-1]), float(series.iloc[-2])
+
+
+# ─────────────────────────────────────────────
+# Stooq（台股 ETF 免費備援）
+# ─────────────────────────────────────────────
+
+def stooq_daily_close(symbol: str, days: int = 500) -> pd.Series:
+    """
+    Stooq.com 免費日線資料，作為 TWSE 之後的第二備援
+    symbol: 如 '0050.tw', '00679b.tw'（小寫）
+    """
+    try:
+        r = requests.get(
+            STOOQ_BASE,
+            params={"s": symbol.lower(), "i": "d"},
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=15
+        )
+        if r.status_code != 200 or len(r.text.strip()) < 30:
+            print(f"  [Stooq] {symbol} 空回應")
+            return pd.Series(dtype=float)
+        from io import StringIO
+        df = pd.read_csv(StringIO(r.text))
+        if "Date" not in df.columns or "Close" not in df.columns:
+            print(f"  [Stooq] {symbol} 欄位異常")
+            return pd.Series(dtype=float)
+        df = df.sort_values("Date").dropna(subset=["Close"])
+        series = pd.Series(
+            df["Close"].astype(float).values,
+            index=df["Date"].values,
+        )
+        series = series[series > 0]
+        if series.empty:
+            return pd.Series(dtype=float)
+        print(f"  [Stooq] {symbol} 取得 {len(series)} 筆")
+        return series.tail(days)
+    except Exception as e:
+        print(f"  [Stooq] {symbol}: {e}")
+        return pd.Series(dtype=float)
 
 
 # ─────────────────────────────────────────────

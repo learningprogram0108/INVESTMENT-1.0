@@ -14,6 +14,7 @@ from src.data_fetcher import (
     av_daily_close, av_quote,
     fetch_vix_av, fetch_treasury_av,
     twse_daily_close, twse_latest_close,
+    stooq_daily_close,
     fetch_fred, fetch_hy_spread_fred,
 )
 
@@ -308,14 +309,17 @@ def run_morning_session(fred_key: str, av_key: str):
     etf_signals = []
     for ticker, name, stock_no in etf_configs:
         print(f"  [ETF] {ticker}...")
-        # 先嘗試 TWSE，失敗改用 Alpha Vantage
-        prices = twse_daily_close(stock_no, months=14)
+        # 1. 優先 TWSE（24 個月 ≈ 480 筆，確保 EMA200 暖機足夠）
+        prices = twse_daily_close(stock_no, months=24)
+        if prices.empty or len(prices) < 50:
+            # 2. Stooq 備援（免費、支援台股 ETF）
+            print(f"  [ETF] {ticker} TWSE 無資料，改用 Stooq...")
+            prices = stooq_daily_close(f"{stock_no}.tw", days=500)
         if prices.empty or len(prices) < 10:
-            print(f"  [ETF] {ticker} TWSE 無資料，改用 Alpha Vantage...")
+            # 3. Alpha Vantage 最後備援
+            print(f"  [ETF] {ticker} Stooq 無資料，改用 Alpha Vantage...")
             time.sleep(13)
-            # AV 台股格式：0050.TW、00679B.TW
-            av_symbol = f"{stock_no}.TW"
-            prices = av_daily_close(av_symbol, av_key, days=300)
+            prices = av_daily_close(f"{stock_no}.TW", av_key, days=400)
             if prices.empty or len(prices) < 10:
                 print(f"  [WARN] {ticker} 所有來源均無資料，跳過")
                 continue
