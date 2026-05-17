@@ -149,6 +149,7 @@ def stooq_daily_close(symbol: str, days: int = 500) -> pd.Series:
     Stooq.com 免費日線資料，作為 TWSE 之後的第二備援
     symbol: 如 '0050.tw', '00679b.tw'（小寫）
     """
+    from io import StringIO
     try:
         r = requests.get(
             STOOQ_BASE,
@@ -156,11 +157,23 @@ def stooq_daily_close(symbol: str, days: int = 500) -> pd.Series:
             headers={"User-Agent": "Mozilla/5.0"},
             timeout=15
         )
-        if r.status_code != 200 or len(r.text.strip()) < 30:
+        if r.status_code != 200 or len(r.text.strip()) < 10:
             print(f"  [Stooq] {symbol} 空回應")
             return pd.Series(dtype=float)
-        from io import StringIO
-        df = pd.read_csv(StringIO(r.text))
+
+        # Stooq 有時會在 CSV 前插入錯誤說明行，找到含 "Date" 的標頭行
+        lines = r.text.strip().splitlines()
+        header_idx = next(
+            (i for i, l in enumerate(lines) if "Date" in l and "Close" in l),
+            None
+        )
+        if header_idx is None:
+            print(f"  [Stooq] {symbol} 無 CSV 標頭（可能為維護頁面或無資料）")
+            return pd.Series(dtype=float)
+
+        csv_text = "\n".join(lines[header_idx:])
+        df = pd.read_csv(StringIO(csv_text), on_bad_lines="skip")
+
         if "Date" not in df.columns or "Close" not in df.columns:
             print(f"  [Stooq] {symbol} 欄位異常")
             return pd.Series(dtype=float)
