@@ -273,7 +273,6 @@ def fetch_macro(fred_key: str, av_key: str) -> tuple[MacroIndicators, float, flo
     yield_curve  = round(us10y - us02y, 3)
 
     print("  [MACRO] 擷取 VIX...")
-    time.sleep(13)
     vix, vix_upper, vix_break = fetch_vix_av(av_key)
 
     print("  [MACRO] 擷取 HY 信用利差...")
@@ -332,7 +331,6 @@ def run_morning_session(fred_key: str, av_key: str):
         if prices.empty or len(prices) < 10:
             # 3. Alpha Vantage 最後備援
             print(f"  [ETF] {ticker} Stooq 無資料，改用 Alpha Vantage...")
-            time.sleep(13)
             prices = av_daily_close(f"{stock_no}.TW", av_key, days=400)
             if prices.empty or len(prices) < 10:
                 print(f"  [WARN] {ticker} 所有來源均無資料，跳過")
@@ -375,7 +373,6 @@ def run_evening_session(fred_key: str, av_key: str):
         prices = stooq_daily_close(stooq_sym, days=400)
         if prices.empty or len(prices) < 5:
             print(f"  [ETF] {ticker} Stooq 無資料，改用 Alpha Vantage...")
-            time.sleep(13)
             prices = av_daily_close(ticker, av_key, days=400)
         if prices.empty or len(prices) < 5:
             print(f"  [WARN] {ticker} 無資料，跳過")

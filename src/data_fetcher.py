@@ -31,6 +31,7 @@ def _av_get(params: dict, av_key, retries: int = 3) -> dict:
                 if attempt > 0:
                     time.sleep(15 * attempt)
                 r = requests.get(AV_BASE, params=params, timeout=15)
+                time.sleep(1.5)  # 1 req/s 限制，留 0.5s 緩衝
                 data = r.json()
                 if "Note" in data or "Information" in data:
                     print(f"  [AV] key ...{key[-4:]} 配額已滿，嘗試下一組 key")
@@ -253,8 +254,6 @@ def fetch_treasury_av(av_key) -> tuple[float, float]:
             us10y = round(float(vals10[0]["value"]), 3)
     except Exception as e:
         print(f"  [AV] US10Y: {e}")
-
-    time.sleep(13)   # AV 免費版 5 req/min → 每次間隔 13s
 
     try:
         data02 = _av_get({
