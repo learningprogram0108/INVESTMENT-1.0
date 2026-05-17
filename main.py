@@ -15,14 +15,16 @@ from src.line_builder import (
     build_etf_card, build_bond_card,
     send_line_messages,
 )
+from src.gemini_summary import build_gemini_summary
 
 
 def main():
-    token    = os.environ.get("LINE_CHANNEL_TOKEN", "")
-    user_id  = os.environ.get("LINE_USER_ID", "")
-    fred_key = os.environ.get("FRED_API_KEY", "")
-    av_key   = os.environ.get("AV_API_KEY", "")
-    session  = os.environ.get("SESSION", "morning").lower().strip()
+    token       = os.environ.get("LINE_CHANNEL_TOKEN", "")
+    user_id     = os.environ.get("LINE_USER_ID", "")
+    fred_key    = os.environ.get("FRED_API_KEY", "")
+    av_key      = os.environ.get("AV_API_KEY", "")
+    gemini_key  = os.environ.get("GEMINI_API_KEY", "")
+    session     = os.environ.get("SESSION", "morning").lower().strip()
 
     if not token or not user_id:
         print("[ERROR] LINE_CHANNEL_TOKEN 或 LINE_USER_ID 未設定")
@@ -40,6 +42,9 @@ def main():
             sys.exit(1)
         macro, etf_signals, vix = run_morning_session(fred_key, av_key)
         messages.append(build_text_message("morning", macro, etf_signals, date_str))
+        gemini_msg = build_gemini_summary(macro, etf_signals, "morning", gemini_key)
+        if gemini_msg:
+            messages.append(gemini_msg)
         messages.append(build_macro_card(macro, date_str))
         sig_0050 = next((s for s in etf_signals if "0050" in s.ticker), None)
         if sig_0050:
@@ -52,11 +57,14 @@ def main():
         if not av_key:
             print("[ERROR] AV_API_KEY 未設定")
             sys.exit(1)
-        macro, sig_voo, vix = run_evening_session(fred_key, av_key)
+        macro, etf_signals, vix = run_evening_session(fred_key, av_key)
         messages.append(build_text_message(
-            "evening", macro, [sig_voo] if sig_voo else [], date_str))
-        if sig_voo:
-            messages.append(build_etf_card(sig_voo, date_str, "evening"))
+            "evening", macro, etf_signals, date_str))
+        gemini_msg = build_gemini_summary(macro, etf_signals, "evening", gemini_key)
+        if gemini_msg:
+            messages.append(gemini_msg)
+        for sig in etf_signals:
+            messages.append(build_etf_card(sig, date_str, "evening"))
 
     else:
         print(f"[ERROR] 未知 SESSION={session}")

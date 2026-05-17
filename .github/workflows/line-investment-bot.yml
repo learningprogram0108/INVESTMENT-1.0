@@ -41,6 +41,7 @@ jobs:
           LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
           AV_API_KEY: ${{ secrets.AV_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           SESSION: ${{ inputs.session }}
           TRIGGERED_AT: ${{ inputs.triggered_at }}
         run: python main.py

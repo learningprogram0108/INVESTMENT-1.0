@@ -264,6 +264,18 @@ def build_etf_card(sig: ETFSignal, date_str: str, session: str) -> dict:
         _row("EMA Z-Score",
              f"{sig.z_score:+.2f}",
              _z_color(sig.z_score)),
+        _sep(),
+        _section("MACD (12/26/9)"),
+        _row("MACD 線",
+             f"{sig.macd_line:+.4f}" if sig.macd_line is not None else "N/A",
+             "#1D9E75" if (sig.macd_line or 0) > (sig.macd_signal or 0) else "#E24B4A"),
+        _row("訊號線",
+             f"{sig.macd_signal:+.4f}" if sig.macd_signal is not None else "N/A",
+             "#888888"),
+        _row("柱狀圖",
+             (f"{sig.macd_hist:+.4f}  {'▲擴大' if (sig.macd_hist or 0) > 0 else '▼收縮'}"
+              if sig.macd_hist is not None else "N/A"),
+             "#1D9E75" if (sig.macd_hist or 0) > 0 else "#E24B4A"),
         _row("VIX 恐慌指數",
              f"{sig.vix:.1f}",
              "#E24B4A" if sig.vix >= 35 else
@@ -427,17 +439,22 @@ def build_text_message(session: str, macro: MacroIndicators,
             f"詳細指標請查看下方卡片。"
         )
     else:
-        sig = etf_signals[0] if etf_signals else None
-        if sig:
+        if etf_signals:
+            lines = []
+            for s in etf_signals:
+                ticker = s.ticker.replace(".TW", "")
+                lines.append(
+                    f"{ticker}：{s.multiplier_mode}  乘數 {s.fund_multiplier}x  "
+                    f"Z={s.z_score:+.2f}"
+                )
+            etf_str = "\n".join(lines)
             text = (
                 f"🌙 {date_str} 美股收盤\n\n"
-                f"VOO：{sig.multiplier_mode}  乘數 {sig.fund_multiplier}x\n"
-                f"情緒溫度計：{sig.sentiment_score:.0f}/100（{sig.sentiment_label}）\n"
-                f"EMA Z-Score：{sig.z_score:+.2f}\n\n"
+                f"{etf_str}\n\n"
                 f"詳細分析請查看下方卡片。"
             )
         else:
-            text = f"🌙 {date_str} VOO 資料暫時無法取得，請稍後手動確認。"
+            text = f"🌙 {date_str} 資料暫時無法取得，請稍後手動確認。"
     return {"type": "text", "text": text}
 
 # ─────────────────────────────────────────────

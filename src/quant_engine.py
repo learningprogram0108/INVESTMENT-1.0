@@ -23,6 +23,7 @@ from src.data_fetcher import (
 # ─────────────────────────────────────────────
 KELLY_PARAMS = {
     "VOO":       {"p": 0.68, "b": 2.1},
+    "GLD":       {"p": 0.55, "b": 1.5},
     "0050.TW":   {"p": 0.65, "b": 1.8},
     "00679B.TW": {"p": 0.60, "b": 1.4},
 }
@@ -50,6 +51,9 @@ class ETFSignal:
     cycle_phase: str
     fund_multiplier: float
     multiplier_mode: str
+    macd_line:   Optional[float]
+    macd_signal: Optional[float]
+    macd_hist:   Optional[float]
 
 
 @dataclass
@@ -215,6 +219,15 @@ def _calc_etf_signal(ticker: str, name: str,
         except Exception as e:
             print(f"  [CAPE] {ticker}: {e}")
 
+    ema12   = prices.ewm(span=12, adjust=False).mean()
+    ema26   = prices.ewm(span=26, adjust=False).mean()
+    _macd   = ema12 - ema26
+    _msig   = _macd.ewm(span=9, adjust=False).mean()
+    _mhist  = _macd - _msig
+    macd_l  = round(float(_macd.iloc[-1]),  4)
+    macd_s  = round(float(_msig.iloc[-1]),  4)
+    macd_h  = round(float(_mhist.iloc[-1]), 4)
+
     return ETFSignal(
         ticker=ticker, name=name,
         price=round(current, 2), change_pct=chg_pct,
@@ -224,6 +237,7 @@ def _calc_etf_signal(ticker: str, name: str,
         cape=cape, erp=erp, predicted_10y_return=pred,
         kelly_f=kelly_f,
         cycle_phase=phase, fund_multiplier=mult, multiplier_mode=mode,
+        macd_line=macd_l, macd_signal=macd_s, macd_hist=macd_h,
     )
 
 
@@ -350,24 +364,31 @@ def run_evening_session(fred_key: str, av_key: str):
     # 注入 av_key 供 _calc_etf_signal 使用
     _calc_etf_signal._av_key = av_key
 
-    # 1. 優先 Stooq（免費、無配額限制）
-    print("  [ETF] VOO (Stooq)...")
-    prices = stooq_daily_close("voo.us", days=400)
-    if prices.empty or len(prices) < 5:
-        # 2. Stooq 失敗才用 Alpha Vantage
-        print("  [ETF] VOO Stooq 無資料，改用 Alpha Vantage...")
-        time.sleep(13)
-        prices = av_daily_close("VOO", av_key, days=400)
-    if prices.empty or len(prices) < 5:
-        print("  [WARN] VOO 無資料")
-        return macro, None, vix
+    etf_configs = [
+        ("VOO", "Vanguard S&P 500", "voo.us"),
+        ("GLD", "SPDR Gold Shares",  "gld.us"),
+    ]
 
-    current = float(prices.iloc[-1])
-    prev    = float(prices.iloc[-2])
-    sig = _calc_etf_signal(
-        "VOO", "Vanguard S&P 500", prices, current, prev,
-        vix, vix_break, macro.hy_spread, macro.us10y,
-        macro.sahm_triggered
-    )
-    print(f"  VOO: Z={sig.z_score} | 乘數={sig.fund_multiplier}x | {sig.cycle_phase}")
-    return macro, sig, vix
+    etf_signals = []
+    for ticker, name, stooq_sym in etf_configs:
+        print(f"  [ETF] {ticker} (Stooq)...")
+        prices = stooq_daily_close(stooq_sym, days=400)
+        if prices.empty or len(prices) < 5:
+            print(f"  [ETF] {ticker} Stooq 無資料，改用 Alpha Vantage...")
+            time.sleep(13)
+            prices = av_daily_close(ticker, av_key, days=400)
+        if prices.empty or len(prices) < 5:
+            print(f"  [WARN] {ticker} 無資料，跳過")
+            continue
+
+        current = float(prices.iloc[-1])
+        prev    = float(prices.iloc[-2])
+        sig = _calc_etf_signal(
+            ticker, name, prices, current, prev,
+            vix, vix_break, macro.hy_spread, macro.us10y,
+            macro.sahm_triggered
+        )
+        etf_signals.append(sig)
+        print(f"  {ticker}: Z={sig.z_score} | 乘數={sig.fund_multiplier}x | {sig.cycle_phase}")
+
+    return macro, etf_signals, vix
