@@ -2,115 +2,313 @@
 
 每日自動推送兩次量化投資訊號至 LINE，包含台股 ETF（早盤）與美股 ETF（夜盤）的技術面、總經面與 AI 大師摘要。
 
-## 架構總覽
+---
+
+## 系統架構
 
 ```
-Cloudflare Worker（cron 精準觸發）
-    → GitHub Actions workflow_dispatch
-        → Python：資料擷取 + 量化計算 + Gemini AI 摘要
-            → LINE Messaging API → 手機
+┌─────────────────────────────────────────────────────────┐
+│  Cloudflare Worker                                      │
+│  cron 觸發：09:30 TST（早盤）/ 22:00 TST（夜盤）        │
+└────────────────────┬────────────────────────────────────┘
+                     │ HTTP POST workflow_dispatch
+                     ▼
+┌─────────────────────────────────────────────────────────┐
+│  GitHub Actions（ubuntu-latest）                        │
+│  python main.py  SESSION=morning / evening              │
+│                                                         │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
+│  │ data_fetcher │  │ quant_engine │  │gemini_summary│  │
+│  │              │  │              │  │              │  │
+│  │ Stooq CSV    │  │ EMA200       │  │ Gemini REST  │  │
+│  │ TWSE OpenAPI │→ │ Z-Score      │→ │ API          │  │
+│  │ Alpha Vantage│  │ MACD         │  │ 大師框架摘要 │  │
+│  │ FRED API     │  │ Kelly / CAPE │  │              │  │
+│  └──────────────┘  └──────────────┘  └──────────────┘  │
+│                           │                             │
+│                    line_builder                         │
+│                    Flex Message 組裝                    │
+└────────────────────┬────────────────────────────────────┘
+                     │ LINE Push API
+                     ▼
+              你的 LINE 手機
 ```
 
----
+### 資料擷取優先順序
 
-## 推送時間與內容
+| ETF | 第一優先 | 第二備援 | 第三備援 |
+|-----|---------|---------|---------|
+| 0050、00679B | TWSE Open API | Stooq.com | Alpha Vantage |
+| VOO、GLD | Stooq.com | Alpha Vantage | — |
+| VIX | Stooq.com（^vix） | Alpha Vantage（VIXY / UVXY） | 預設值 20.0 |
+| 美國公債殖利率 | Alpha Vantage | — | 內建估算值 |
+| 失業率、CPI、PMI | FRED API | — | 內建估算值 |
+| HY 信用利差 | FRED API | — | 內建估算值 |
+| AI 摘要 | Gemini 3.1 Flash Lite | — | 自動略過 |
 
-| Session | 時間（TST） | ETF | 訊息數 |
-|---------|------------|-----|--------|
-| 早盤 | 09:30（週一～週五） | 0050、00679B | 最多 5 則 |
-| 夜盤 | 22:00（週一～週五） | VOO、GLD | 最多 4 則 |
-
-### 早盤訊息（5 則）
-1. 文字摘要（總覽）
-2. Gemini AI 大師觀點
-3. 總經指標卡（殖利率曲線、CPI、薩姆規則、景氣衰退機率等）
-4. 元大台灣 50（0050）ETF 卡
-5. 元大美債 20年（00679B）ETF 卡
-
-### 夜盤訊息（4 則）
-1. 文字摘要（總覽）
-2. Gemini AI 大師觀點
-3. Vanguard S&P 500（VOO）ETF 卡
-4. SPDR Gold Shares（GLD）ETF 卡
-
-### ETF 卡包含指標
-- 現價 / 漲跌幅 / EMA200 / Z-Score
-- MACD (12/26/9)：MACD 線、訊號線、柱狀圖
-- 情緒溫度計（0～100）
-- VIX 恐慌指數 / 布林突破訊號
-- CAPE 代理值 / ERP / 預估 10 年報酬（股票 ETF）
-- 凱利建議乘數 / 景氣階段
+> Alpha Vantage 免費方案：25 req/day、1 req/s。系統支援雙 key 自動切換（`AV_API_KEY` → `AV_API_KEY_2`），第一組配額耗盡時無縫切換第二組。
 
 ---
 
-## 資料來源
+## 推送內容
 
-| 資料 | 來源 | 備援 |
-|------|------|------|
-| VOO、GLD 日線 | Stooq.com | Alpha Vantage |
-| VIX 指數 | Stooq.com（^vix） | Alpha Vantage（VIXY） |
-| 0050、00679B 日線 | TWSE Open API | Stooq → Alpha Vantage |
-| 美國公債殖利率 | Alpha Vantage | — |
-| CAPE / ERP | Alpha Vantage（COMPANY_OVERVIEW） | — |
-| 失業率、CPI、PMI | FRED API | 內建估算值 |
-| HY 信用利差 | FRED API（BAMLH0A0HYM2） | 內建估算值 |
-| AI 摘要 | Gemini 3.1 Flash Lite | 略過（不影響其他訊息） |
+| Session | 時間（TST） | 涵蓋 ETF | 最多訊息數 |
+|---------|------------|---------|----------|
+| 早盤 | 09:30（週一～週五） | 0050、00679B | 5 則 |
+| 夜盤 | 22:00（週一～週五） | VOO、GLD | 4 則 |
+
+**早盤訊息順序**：文字摘要 → Gemini AI 觀點 → 總經指標卡 → 0050 ETF 卡 → 00679B ETF 卡
+
+**夜盤訊息順序**：文字摘要 → Gemini AI 觀點 → VOO ETF 卡 → GLD ETF 卡
 
 ---
 
-## 步驟一：GitHub Secrets 設定
+## 指標說明
+
+### 現價 / 漲跌幅
+
+- **現價**：當日最新收盤價
+- **漲跌幅（%）**：`(今日收盤 - 前日收盤) / 前日收盤 × 100`，反映單日動能
+
+---
+
+### EMA200（200 日指數移動平均）
+
+指數移動平均（Exponential Moving Average）對近期價格給予更高權重，比簡單移動平均對趨勢反應更靈敏。
+
+```
+EMAₜ = 收盤價ₜ × k + EMAₜ₋₁ × (1 - k)
+k = 2 / (200 + 1) ≈ 0.00995
+```
+
+- **EMA200 以上**：長期多頭趨勢，市場整體偏樂觀
+- **EMA200 以下**：長期空頭趨勢，需提高風險意識
+- 系統需要至少 400 筆歷史日線資料（約 1.5 年）以確保 EMA200 充分暖機，避免初始偏差
+
+---
+
+### Z-Score（EMA 標準分數）
+
+衡量當前價格相對於近期均值偏離多少個標準差，用於判斷是否超漲或超跌。
+
+```
+Z-Score = (現價 - EMA_N) / 滾動標準差_N
+N = min(200, 可用資料筆數 - 1)
+```
+
+| Z-Score 範圍 | 解讀 |
+|-------------|------|
+| Z > +2.5 | 嚴重超漲，進入樂觀過熱期，系統乘數降至 0.5x |
+| +1.0 ～ +2.5 | 溫和偏貴，正常成長期 |
+| -1.0 ～ +1.0 | 合理區間，鑑賞家巡航 |
+| -2.0 ～ -1.0 | 偏低估，希望復甦期，乘數提升至 1.5x |
+| Z < -2.0 | 嚴重超跌，恐慌底部，乘數最高 2.5x（獵人加碼） |
+
+---
+
+### MACD（12/26/9）
+
+MACD（Moving Average Convergence Divergence，指數平滑異同移動平均線）是最廣泛使用的趨勢動能指標，由三條線組成：
+
+#### 計算方式
+
+```
+EMA12  = 12 日指數移動平均
+EMA26  = 26 日指數移動平均
+MACD 線 = EMA12 - EMA26         ← 快慢均線差值，反映短期動能
+訊號線  = MACD 線的 9 日 EMA    ← MACD 線的平滑版，用於產生交叉訊號
+柱狀圖  = MACD 線 - 訊號線      ← 兩線差距，反映動能加速或減速
+```
+
+#### MACD 線（快線）
+
+- **數值為正**：短期均線在長期均線之上，短期多頭動能
+- **數值為負**：短期均線在長期均線之下，短期空頭動能
+- **由負轉正**（黃金交叉）：潛在趨勢反轉向上訊號
+
+#### 訊號線（慢線）
+
+- MACD 線的 9 日平滑，用來過濾雜訊
+- **MACD 線上穿訊號線**：買入參考訊號（多頭交叉）
+- **MACD 線下穿訊號線**：賣出參考訊號（空頭交叉）
+
+#### 柱狀圖（Histogram）
+
+- **正值且擴大（▲擴大）**：多頭動能加速，趨勢強勁
+- **正值但收縮**：多頭動能減弱，需留意反轉
+- **負值且擴大（▼收縮）**：空頭動能加速
+- **負值轉正**：動能由空轉多的早期訊號
+
+> MACD 屬於**落後指標**，適合確認趨勢方向，不適合預測頂底，建議搭配 Z-Score 與 VIX 綜合研判。
+
+---
+
+### 情緒溫度計（0～100）
+
+綜合三個面向的市場情緒指數，數值越高代表市場越貪婪，越低代表越恐慌。
+
+```
+情緒分數 = Z-Score 分項（50%）+ VIX 反向分項（30%）+ 利差反向分項（20%）
+
+Z-Score 分項  = max(0, min(100, (Z + 3) / 6 × 100))
+VIX 分項      = max(0, min(100, (45 - VIX) / 35 × 100))
+利差分項      = max(0, min(100, (10 - HY利差) / 8 × 100))
+```
+
+| 分數 | 標籤 |
+|------|------|
+| 80 以上 | 極度貪婪 |
+| 60～79 | 貪婪 |
+| 40～59 | 中性 |
+| 20～39 | 恐慌 |
+| 20 以下 | 極度恐慌 |
+
+---
+
+### VIX 恐慌指數 / 布林突破
+
+- **VIX**：CBOE 波動率指數，衡量市場對未來 30 日標普 500 波動的預期，俗稱「恐慌指數」
+- **VIX < 20**：市場平靜，通常為多頭環境
+- **VIX 20～30**：市場不安，需謹慎
+- **VIX > 30**：恐慌升溫，歷史上常是底部區域
+- **布林突破**：VIX 突破 20 日均線 + 2 倍標準差上軌，代表短期恐慌驟增，系統會標記警示
+
+---
+
+### CAPE 代理值 / ERP / 預估 10 年報酬（股票 ETF 限定）
+
+#### CAPE（週期調整本益比）
+
+Shiller CAPE 以 10 年平均實質盈餘平滑單年盈餘的波動。系統以 Alpha Vantage 的 Trailing PE × 0.95 作為代理值（保守估計）。
+
+- **CAPE < 15**：歷史低估，長期預期報酬高
+- **CAPE 15～25**：合理區間
+- **CAPE > 30**：歷史高估，長期預期報酬偏低
+
+#### ERP（股票風險溢酬）
+
+相較於無風險利率（美國 10 年期公債殖利率），持有股票所要求的額外報酬。
+
+```
+ERP = (1 / 本益比) - 無風險利率
+```
+
+- **ERP > 3%**：股票相對債券具吸引力
+- **ERP < 1%**：股票溢酬薄，風險報酬不對稱
+
+#### 預估 10 年年化報酬
+
+基於 CAPE 的 Shiller 模型，歷史統計 CAPE 與未來 10 年報酬的回歸關係。數值僅供長期參考，非短期預測。
+
+---
+
+### 凱利建議乘數 / 景氣階段
+
+#### 景氣階段（彼得．奧本海默四階段框架）
+
+| 階段 | 觸發條件 | 乘數 | 模式 |
+|------|---------|------|------|
+| 🔴 絕望期（衰退確認） | 薩姆規則觸發 | 0.5x | 刺客防禦 |
+| ⚠️ 樂觀期（過熱警戒） | Z-Score > 2.5 或利差 < 3.5% | 0.5x | 刺客防禦 |
+| 🟡 絕望期（恐慌超跌） | Z < -2.0 或 VIX ≥ 35 或利差 ≥ 8% | 2.0～2.5x | 獵人加碼 |
+| 🟡 希望期（復甦初期） | Z < -1.0 或利差 ≥ 6% | 1.5x | 積極布局 |
+| 🟢 成長期（常態擴張） | 其餘情況 | 1.0x | 鑑賞家巡航 |
+
+#### 凱利準則（Kelly Criterion）
+
+根據勝率與賠率計算理論最佳倉位比例：
+
+```
+Kelly f* = (p × b - (1 - p)) / b
+p = 歷史勝率，b = 平均盈虧比
+```
+
+各 ETF 參數設定：
+
+| ETF | 勝率 p | 賠率 b | Kelly f* |
+|-----|--------|--------|----------|
+| VOO | 0.68 | 2.1 | ~0.362 |
+| 0050.TW | 0.65 | 1.8 | ~0.361 |
+| 00679B.TW | 0.60 | 1.4 | ~0.257 |
+| GLD | 0.55 | 1.5 | ~0.183 |
+
+**最終乘數** = `min(景氣階段乘數, Kelly f* × 3)`，雙重上限保護避免過度集中。
+
+---
+
+### 總經指標卡說明
+
+| 指標 | 說明 |
+|------|------|
+| US10Y / US02Y | 美國 10 年 / 2 年期公債殖利率 |
+| 殖利率曲線 | US10Y - US02Y；負值（倒掛）歷史上為衰退前兆 |
+| 實質利率 | US10Y - CPI YoY；正值代表貨幣緊縮環境 |
+| CPI YoY | 美國年化通膨率 |
+| 薩姆規則 | 失業率 3 個月均值 - 前 12 個月最低值 ≥ 0.5%，歷史上 100% 命中衰退 |
+| Michez 法則 | 綜合職缺率與失業率，衡量勞動市場轉折 |
+| 衰退機率 | 基於 Michez 指標的統計衰退機率 |
+| HY 信用利差 | 高收益債 OAS 利差；> 6% 代表信用市場出現壓力 |
+| ISM PMI | 製造業採購經理人指數；> 50 代表擴張，< 50 代表收縮 |
+
+---
+
+### Gemini AI 大師觀點
+
+每個 session 獨立生成一則 AI 摘要，以六位投資大師框架解讀當前數據：
+
+| 大師 | 核心概念 |
+|------|---------|
+| 霍華．馬克斯 | 第二層思考、鐘擺效應、風險 = 永久損失資本 |
+| 雷．達利歐 | 債務週期、風險平價 |
+| 摩根．豪瑟 | 行為紀律 > 智商、安全邊際 |
+| 李．弗里曼-修爾 | 執行藝術：兔子 / 刺客 / 獵人框架 |
+| 彼得．奧本海默 | 市場週期四階段：絕望 → 希望 → 成長 → 樂觀 |
+| 愛德華．錢思樂 | 利率為時間價格，低利率扭曲估值 |
+
+輸出格式：3～5 條重點條列 + 200 字以內綜合段落，純繁體中文，無 Markdown 符號。
+
+---
+
+## 部署步驟
+
+### 步驟一：GitHub Secrets 設定
 
 前往 **GitHub Repo → Settings → Secrets and variables → Actions → New repository secret**
 
-| Secret 名稱 | 必填 | 說明 | 取得方式 |
-|---|---|---|---|
-| `LINE_CHANNEL_TOKEN` | ✅ | Channel Access Token | LINE Developers Console → Messaging API |
-| `LINE_USER_ID` | ✅ | 你的 LINE User ID | 對 Bot 傳訊後查 webhook log |
-| `AV_API_KEY` | ✅ | Alpha Vantage API Key（主） | https://www.alphavantage.co/support/#api-key |
-| `AV_API_KEY_2` | 建議 | Alpha Vantage API Key（備） | 同上，另申請一組備援 |
-| `GEMINI_API_KEY` | 建議 | Gemini API Key | https://aistudio.google.com/app/apikey |
-| `FRED_API_KEY` | 建議 | FRED API Key | https://fred.stlouisfed.org/docs/api/api_key.html |
+| Secret 名稱 | 必填 | 說明 |
+|---|---|---|
+| `LINE_CHANNEL_TOKEN` | ✅ | LINE Channel Access Token |
+| `LINE_USER_ID` | ✅ | 你的 LINE User ID |
+| `AV_API_KEY` | ✅ | Alpha Vantage API Key（主） |
+| `AV_API_KEY_2` | 建議 | Alpha Vantage API Key（備援，配額耗盡自動切換） |
+| `GEMINI_API_KEY` | 建議 | Gemini API Key |
+| `FRED_API_KEY` | 建議 | FRED API Key |
 
-> **AV 免費方案限制**：25 req/day、1 req/s。建議申請兩組 key，當第一組配額耗盡時自動切換第二組。
-
----
-
-## 步驟二：取得 LINE User ID
+### 步驟二：取得 LINE User ID
 
 1. 進入 LINE Developers Console → 你的 Messaging API Channel
-2. 在「Webhook URL」填入任意 HTTPS URL（例如 https://httpbin.org/post）
+2. Webhook URL 填入任意 HTTPS URL（例如 `https://httpbin.org/post`）
 3. 用你的 LINE 帳號傳訊息給 Bot
 4. 在 webhook log 中找到 `"userId": "Uxxxxxxxxxx"`
 5. 將此值存入 `LINE_USER_ID` Secret
 
----
-
-## 步驟三：Cloudflare Worker 部署
+### 步驟三：Cloudflare Worker 部署
 
 ```bash
 cd cloudflare_worker
 
-# 安裝 Wrangler CLI（若未安裝）
 npm install -g wrangler
-
-# 登入 Cloudflare
 wrangler login
 
-# 設定 Secrets（互動式輸入，不會明文存檔）
-wrangler secret put GH_PAT     # GitHub PAT（需 workflow 觸發權限）
+wrangler secret put GH_PAT     # GitHub PAT（需 Actions: Write 權限）
 wrangler secret put GH_REPO    # 填入 "your-username/your-repo"
 
-# 部署
 wrangler deploy
 ```
 
-**GitHub PAT 所需權限**：Settings → Developer settings → Personal access tokens → Fine-grained tokens → `Actions: Write`
+### 步驟四：驗證
 
----
-
-## 步驟四：驗證
-
-在 GitHub Repo → Actions → **LINE 投資每日早報** → **Run workflow** 手動執行，選擇 `morning` 或 `evening`，確認 LINE 收到訊息。
+GitHub Repo → Actions → **LINE 投資每日早報** → **Run workflow**，選擇 `morning` 或 `evening` 後確認 LINE 收到訊息。
 
 ---
 
@@ -118,7 +316,8 @@ wrangler deploy
 
 | 狀況 | 原因 | 影響 |
 |------|------|------|
-| ETF 卡未出現 | 週末 Stooq 無美股資料 / AV 配額耗盡 | 僅文字摘要 + Gemini 發出，其餘跳過 |
-| VIX 顯示預設值 20.0 | 同上 | 情緒與景氣階段計算使用預設值 |
-| Gemini 摘要未出現 | API Key 未設定或呼叫失敗 | 自動略過，不影響其他訊息 |
-| 00679B 無 CAPE / ERP | 債券 ETF 不適用 PE 估值 | 正常，該欄位固定顯示 N/A |
+| ETF 卡未出現 | 週末 Stooq 無美股資料 / AV 兩組 key 配額均耗盡 | 僅文字摘要 + Gemini 發出，ETF 卡自動跳過 |
+| VIX 顯示預設值 20.0 | Stooq 週末無資料且 AV 配額耗盡 | 情緒溫度計與景氣階段使用預設值計算 |
+| Gemini 摘要未出現 | API Key 未設定或呼叫失敗（429/503 超過重試） | 自動略過，不影響其他訊息 |
+| 00679B 無 CAPE / ERP | 債券 ETF 不適用 PE 估值 | 正常行為，該欄位顯示 N/A |
+| AV key 1 配額已滿 | 免費方案 25 req/day | 自動切換 AV_API_KEY_2，隔日 UTC 00:00 重置 |
