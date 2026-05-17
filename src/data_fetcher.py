@@ -21,27 +21,30 @@ STOOQ_BASE = "https://stooq.com/q/d/l/"
 # Alpha Vantage 通用擷取
 # ─────────────────────────────────────────────
 
-def _av_get(params: dict, av_key: str, retries: int = 3) -> dict:
-    params["apikey"] = av_key
-    for attempt in range(retries):
-        try:
-            if attempt > 0:
-                time.sleep(15 * attempt)
-            r = requests.get(AV_BASE, params=params, timeout=15)
-            data = r.json()
-            if "Note" in data or "Information" in data:
-                # 日配額不會在 60s 內恢復，直接跳過節省時間
-                print(f"  [AV] rate limit（日配額已滿），跳過")
-                return {}
-            return data
-        except Exception as e:
-            print(f"  [AV ERR] {e}")
-            if attempt < retries - 1:
-                time.sleep(10)
+def _av_get(params: dict, av_key, retries: int = 3) -> dict:
+    keys = [av_key] if isinstance(av_key, str) else [k for k in av_key if k]
+    for key in keys:
+        params = {k: v for k, v in params.items() if k != "apikey"}
+        params["apikey"] = key
+        for attempt in range(retries):
+            try:
+                if attempt > 0:
+                    time.sleep(15 * attempt)
+                r = requests.get(AV_BASE, params=params, timeout=15)
+                data = r.json()
+                if "Note" in data or "Information" in data:
+                    print(f"  [AV] key ...{key[-4:]} 配額已滿，嘗試下一組 key")
+                    break  # try next key
+                return data
+            except Exception as e:
+                print(f"  [AV ERR] {e}")
+                if attempt < retries - 1:
+                    time.sleep(10)
+    print("  [AV] 所有 API key 均已達配額上限，跳過")
     return {}
 
 
-def av_daily_close(symbol: str, av_key: str, days: int = 400) -> pd.Series:
+def av_daily_close(symbol: str, av_key, days: int = 400) -> pd.Series:
     """
     Alpha Vantage 每日收盤價 → pd.Series（時間升冪）
     使用 full 輸出確保有 400+ 筆，讓 EMA200 有足夠暖機資料
@@ -62,7 +65,7 @@ def av_daily_close(symbol: str, av_key: str, days: int = 400) -> pd.Series:
     return series.tail(days)
 
 
-def av_quote(symbol: str, av_key: str) -> dict:
+def av_quote(symbol: str, av_key) -> dict:
     """Alpha Vantage 即時報價"""
     data = _av_get({
         "function": "GLOBAL_QUOTE",
@@ -210,7 +213,7 @@ def _vix_bollinger(series: pd.Series) -> tuple[float, float, bool]:
     return round(current, 2), round(upper, 2), bb_break
 
 
-def fetch_vix_av(av_key: str) -> tuple[float, float, bool]:
+def fetch_vix_av(av_key) -> tuple[float, float, bool]:
     """
     VIX 擷取：先走 Stooq（真實 ^VIX），失敗才用 AV VIXY 代理
     """
@@ -236,7 +239,7 @@ def fetch_vix_av(av_key: str) -> tuple[float, float, bool]:
 # Alpha Vantage 殖利率（TREASURY_YIELD）
 # ─────────────────────────────────────────────
 
-def fetch_treasury_av(av_key: str) -> tuple[float, float]:
+def fetch_treasury_av(av_key) -> tuple[float, float]:
     """US10Y 與 US02Y 殖利率（%）"""
     us10y, us02y = 4.3, 4.0
     try:
@@ -308,7 +311,7 @@ def fetch_fred(series_id: str, api_key: str, limit: int = 24) -> list:
 
 
 
-def av_company_overview(symbol: str, av_key: str) -> dict:
+def av_company_overview(symbol: str, av_key) -> dict:
     """
     Alpha Vantage COMPANY_OVERVIEW
     取得 ForwardPE、TrailingPE、PERatio 等估值數據
@@ -320,7 +323,7 @@ def av_company_overview(symbol: str, av_key: str) -> dict:
     return data
 
 
-def fetch_cape_erp(symbol: str, av_key: str, rf: float) -> tuple:
+def fetch_cape_erp(symbol: str, av_key, rf: float) -> tuple:
     """
     從 AV OVERVIEW 抓取真實 PE，計算 CAPE 代理值與 ERP
     回傳 (cape, erp, predicted_10y_return)

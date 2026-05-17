@@ -23,6 +23,8 @@ def main():
     user_id     = os.environ.get("LINE_USER_ID", "")
     fred_key    = os.environ.get("FRED_API_KEY", "")
     av_key      = os.environ.get("AV_API_KEY", "")
+    av_key_2    = os.environ.get("AV_API_KEY_2", "")
+    av_keys     = [k for k in [av_key, av_key_2] if k]
     gemini_key  = os.environ.get("GEMINI_API_KEY", "")
     session     = os.environ.get("SESSION", "morning").lower().strip()
 
@@ -37,10 +39,10 @@ def main():
     messages = []
 
     if session == "morning":
-        if not av_key:
+        if not av_keys:
             print("[ERROR] AV_API_KEY 未設定")
             sys.exit(1)
-        macro, etf_signals, vix = run_morning_session(fred_key, av_key)
+        macro, etf_signals, vix = run_morning_session(fred_key, av_keys)
         messages.append(build_text_message("morning", macro, etf_signals, date_str))
         gemini_msg = build_gemini_summary(macro, etf_signals, "morning", gemini_key)
         if gemini_msg:
@@ -54,10 +56,10 @@ def main():
             messages.append(build_bond_card(sig_bond, macro, date_str))
 
     elif session == "evening":
-        if not av_key:
+        if not av_keys:
             print("[ERROR] AV_API_KEY 未設定")
             sys.exit(1)
-        macro, etf_signals, vix = run_evening_session(fred_key, av_key)
+        macro, etf_signals, vix = run_evening_session(fred_key, av_keys)
         messages.append(build_text_message(
             "evening", macro, etf_signals, date_str))
         gemini_msg = build_gemini_summary(macro, etf_signals, "evening", gemini_key)
