@@ -61,7 +61,8 @@ class MacroIndicators:
     us10y: float
     us02y: float
     cpi_yoy: float
-    real_rate: float
+    breakeven: float   # 10Y Breakeven Inflation Rate（FRED T10YIE）
+    real_rate: float   # US10Y − Breakeven（TIPS 實質利率）
     yield_curve: float
     sahm_indicator: float
     sahm_triggered: bool
@@ -256,6 +257,10 @@ def fetch_macro(fred_key: str, av_key: str) -> tuple[MacroIndicators, float, flo
     cpi_yoy  = round((cpi_data[-1] / cpi_data[-13] - 1) * 100, 2) \
                if len(cpi_data) >= 13 else 2.8
 
+    # 10Y Breakeven Inflation Rate（市場預期通膨，FRED T10YIE，日頻）
+    breakeven_data = fetch_fred("T10YIE", fred_key, 5)
+    breakeven = round(breakeven_data[-1], 2) if breakeven_data else round(cpi_yoy, 2)
+
     # ISM PMI（FRED: ISM_MAN_PMI 或 NAPM）
     ism = fetch_fred("ISM_MAN_PMI", fred_key, 5)
     if not ism or len(ism) < 3:
@@ -269,7 +274,7 @@ def fetch_macro(fred_key: str, av_key: str) -> tuple[MacroIndicators, float, flo
 
     print("  [MACRO] 擷取 Alpha Vantage 殖利率...")
     us10y, us02y = fetch_treasury_av(av_key)
-    real_rate    = round(us10y - cpi_yoy, 3)
+    real_rate    = round(us10y - breakeven, 3)   # TIPS 實質利率 = 名目利率 − 預期通膨
     yield_curve  = round(us10y - us02y, 3)
 
     print("  [MACRO] 擷取 VIX...")
@@ -289,7 +294,7 @@ def fetch_macro(fred_key: str, av_key: str) -> tuple[MacroIndicators, float, flo
 
     macro = MacroIndicators(
         us10y=us10y, us02y=us02y, cpi_yoy=cpi_yoy,
-        real_rate=real_rate, yield_curve=yield_curve,
+        breakeven=breakeven, real_rate=real_rate, yield_curve=yield_curve,
         sahm_indicator=sahm_val, sahm_triggered=sahm_on,
         michez_m=michez_m, michez_triggered=mich_on,
         recession_prob=rec_prob,
