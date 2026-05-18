@@ -201,7 +201,7 @@ def build_macro_card(macro: MacroIndicators, date_str: str) -> dict:
              f"{macro.yield_curve:+.2f}%  {_yield_curve_label(macro.yield_curve)}",
              _yield_curve_color(macro.yield_curve)),
         _row("實質利率 (TIPS)",
-             f"{macro.real_rate:+.2f}%  = US10Y − Breakeven",
+             f"{macro.real_rate:+.2f}%  ({macro.us10y:.2f}−{macro.breakeven:.2f})",
              _real_rate_color(macro.real_rate)),
         _row("Breakeven 預期通膨",
              f"{macro.breakeven:.2f}%",
