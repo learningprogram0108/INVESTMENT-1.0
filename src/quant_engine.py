@@ -327,17 +327,18 @@ def run_morning_session(fred_key: str, av_key: str):
     etf_signals = []
     for ticker, name, stock_no in etf_configs:
         print(f"  [ETF] {ticker}...")
-        # 1. 優先 TWSE（14 個月 ≈ 280 筆，債券 ETF 較少也接受 ≥20 筆）
+        # 1. 優先 TWSE（14 個月 ≈ 280 筆，至少要有 2 筆供漲跌計算）
         prices = twse_daily_close(stock_no, months=14)
-        if prices.empty or len(prices) < 20:
+        print(f"    TWSE 取得 {len(prices)} 筆")
+        if prices.empty or len(prices) < 2:
             # 2. Yahoo Finance 備援（台灣 ETF 用 .TW 後綴）
             print(f"  [ETF] {ticker} TWSE 資料不足，改用 Yahoo Finance...")
             prices = yahoo_daily_close(f"{stock_no}.TW", days=400)
-        if prices.empty or len(prices) < 5:
+        if prices.empty or len(prices) < 2:
             # 3. Alpha Vantage 最後備援
             print(f"  [ETF] {ticker} Yahoo 無資料，改用 Alpha Vantage...")
             prices = av_daily_close(f"{stock_no}.TW", av_key, days=400)
-            if prices.empty or len(prices) < 5:
+            if prices.empty or len(prices) < 2:
                 print(f"  [WARN] {ticker} 所有來源均無資料，跳過")
                 continue
 
