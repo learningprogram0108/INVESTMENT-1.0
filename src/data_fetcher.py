@@ -12,9 +12,8 @@ from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
 
-AV_BASE = "https://www.alphavantage.co/query"
+AV_BASE   = "https://www.alphavantage.co/query"
 TWSE_BASE = "https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY"
-STOOQ_BASE = "https://stooq.com/q/d/l/"
 
 
 # ─────────────────────────────────────────────
@@ -145,54 +144,52 @@ def twse_latest_close(stock_no: str) -> tuple[float, float]:
 
 
 # ─────────────────────────────────────────────
-# Stooq（台股 ETF 免費備援）
+# Yahoo Finance（US ETF 免費備援，取代已失效的 Stooq）
 # ─────────────────────────────────────────────
 
-def stooq_daily_close(symbol: str, days: int = 500) -> pd.Series:
+def yahoo_daily_close(symbol: str, days: int = 400) -> pd.Series:
     """
-    Stooq.com 免費日線資料，作為 TWSE 之後的第二備援
-    symbol: 如 '0050.tw', '00679b.tw'（小寫）
+    Yahoo Finance 直接 HTTP 下載日線 CSV，不需 API key。
+    symbol: 如 'VOO', 'GLD', '^VIX'
     """
     from io import StringIO
+    period2 = int(time.time())
+    period1 = period2 - (days + 60) * 86400   # 多抓 60 天緩衝
+    url = f"https://query1.finance.yahoo.com/v7/finance/download/{symbol}"
+    params = {
+        "period1": period1,
+        "period2": period2,
+        "interval": "1d",
+        "events": "history",
+    }
     try:
         r = requests.get(
-            STOOQ_BASE,
-            params={"s": symbol.lower(), "i": "d"},
-            headers={"User-Agent": "Mozilla/5.0"},
-            timeout=15
+            url, params=params,
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"},
+            timeout=15,
         )
-        if r.status_code != 200 or len(r.text.strip()) < 10:
-            print(f"  [Stooq] {symbol} 空回應")
+        if r.status_code != 200 or len(r.text.strip()) < 30:
+            print(f"  [Yahoo] {symbol} 狀態碼 {r.status_code}")
             return pd.Series(dtype=float)
 
-        # Stooq 有時會在 CSV 前插入錯誤說明行，找到含 "Date" 的標頭行
-        lines = r.text.strip().splitlines()
-        header_idx = next(
-            (i for i, l in enumerate(lines) if "Date" in l and "Close" in l),
-            None
-        )
-        if header_idx is None:
-            print(f"  [Stooq] {symbol} 無 CSV 標頭（可能為維護頁面或無資料）")
-            return pd.Series(dtype=float)
-
-        csv_text = "\n".join(lines[header_idx:])
-        df = pd.read_csv(StringIO(csv_text), on_bad_lines="skip")
-
+        df = pd.read_csv(StringIO(r.text), on_bad_lines="skip")
         if "Date" not in df.columns or "Close" not in df.columns:
-            print(f"  [Stooq] {symbol} 欄位異常")
+            print(f"  [Yahoo] {symbol} 欄位異常：{list(df.columns)}")
             return pd.Series(dtype=float)
+
         df = df.sort_values("Date").dropna(subset=["Close"])
+        df = df[df["Close"] != "null"]
         series = pd.Series(
-            df["Close"].astype(float).values,
+            pd.to_numeric(df["Close"], errors="coerce").values,
             index=df["Date"].values,
-        )
+        ).dropna()
         series = series[series > 0]
         if series.empty:
             return pd.Series(dtype=float)
-        print(f"  [Stooq] {symbol} 取得 {len(series)} 筆")
+        print(f"  [Yahoo] {symbol} 取得 {len(series)} 筆")
         return series.tail(days)
     except Exception as e:
-        print(f"  [Stooq] {symbol}: {e}")
+        print(f"  [Yahoo] {symbol}: {e}")
         return pd.Series(dtype=float)
 
 
@@ -214,18 +211,28 @@ def _vix_bollinger(series: pd.Series) -> tuple[float, float, bool]:
     return round(current, 2), round(upper, 2), bb_break
 
 
-def fetch_vix_av(av_key) -> tuple[float, float, bool]:
+def fetch_vix_av(av_key, fred_key: str = "") -> tuple[float, float, bool]:
     """
-    VIX 擷取：先走 Stooq（真實 ^VIX），失敗才用 AV VIXY 代理
+    VIX 擷取優先順序：
+    1. FRED VIXCLS（最可靠，免費，不耗 AV quota）
+    2. Yahoo Finance ^VIX
+    3. AV VIXY 代理（最後備援）
     """
-    # 1. Stooq 直接取 CBOE VIX 指數
-    series = stooq_daily_close("^vix", days=60)
+    # 1. FRED VIXCLS（CBOE VIX 官方日線，T+1 發布）
+    if fred_key and fred_key.lower() != "skip":
+        vix_data = fetch_fred("VIXCLS", fred_key, limit=30)
+        if vix_data and len(vix_data) >= 5:
+            series = pd.Series(vix_data)
+            print(f"  [VIX] FRED VIXCLS 取得 {len(series)} 筆，最新={series.iloc[-1]:.2f}")
+            return _vix_bollinger(series)
+
+    # 2. Yahoo Finance ^VIX
+    series = yahoo_daily_close("^VIX", days=60)
     if not series.empty:
-        print(f"  [VIX] Stooq ^vix 取得 {len(series)} 筆")
         return _vix_bollinger(series)
 
-    # 2. AV VIXY 代理（AV 免費版不支援 ^VIX index）
-    print("  [VIX] Stooq 失敗，改用 AV VIXY...")
+    # 3. AV VIXY 代理（AV 免費版不支援 ^VIX index）
+    print("  [VIX] Yahoo 失敗，改用 AV VIXY...")
     series = av_daily_close("VIXY", av_key, days=60)
     if series.empty:
         series = av_daily_close("UVXY", av_key, days=60)

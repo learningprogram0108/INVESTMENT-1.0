@@ -14,7 +14,7 @@ from src.data_fetcher import (
     av_daily_close, av_quote,
     fetch_vix_av, fetch_treasury_av,
     twse_daily_close, twse_latest_close,
-    stooq_daily_close,
+    yahoo_daily_close,
     fetch_fred, fetch_hy_spread_fred,
 )
 
@@ -278,7 +278,7 @@ def fetch_macro(fred_key: str, av_key: str) -> tuple[MacroIndicators, float, flo
     yield_curve  = round(us10y - us02y, 3)
 
     print("  [MACRO] 擷取 VIX...")
-    vix, vix_upper, vix_break = fetch_vix_av(av_key)
+    vix, vix_upper, vix_break = fetch_vix_av(av_key, fred_key)
 
     print("  [MACRO] 擷取 HY 信用利差...")
     hy_spread = fetch_hy_spread_fred(fred_key)
@@ -327,15 +327,15 @@ def run_morning_session(fred_key: str, av_key: str):
     etf_signals = []
     for ticker, name, stock_no in etf_configs:
         print(f"  [ETF] {ticker}...")
-        # 1. 優先 TWSE（14 個月 ≈ 280 筆，stooq fallback 補足至 500 筆）
+        # 1. 優先 TWSE（14 個月 ≈ 280 筆）
         prices = twse_daily_close(stock_no, months=14)
         if prices.empty or len(prices) < 50:
-            # 2. Stooq 備援（免費、支援台股 ETF）
-            print(f"  [ETF] {ticker} TWSE 無資料，改用 Stooq...")
-            prices = stooq_daily_close(f"{stock_no}.tw", days=500)
+            # 2. Yahoo Finance 備援（Stooq 已需要 API key，改用 Yahoo）
+            print(f"  [ETF] {ticker} TWSE 無資料，改用 Yahoo Finance...")
+            prices = yahoo_daily_close(f"{stock_no}.TW", days=400)
         if prices.empty or len(prices) < 10:
             # 3. Alpha Vantage 最後備援
-            print(f"  [ETF] {ticker} Stooq 無資料，改用 Alpha Vantage...")
+            print(f"  [ETF] {ticker} Yahoo 無資料，改用 Alpha Vantage...")
             prices = av_daily_close(f"{stock_no}.TW", av_key, days=400)
             if prices.empty or len(prices) < 10:
                 print(f"  [WARN] {ticker} 所有來源均無資料，跳過")
@@ -368,16 +368,16 @@ def run_evening_session(fred_key: str, av_key: str):
     _calc_etf_signal._av_key = av_key
 
     etf_configs = [
-        ("VOO", "Vanguard S&P 500", "voo.us"),
-        ("GLD", "SPDR Gold Shares",  "gld.us"),
+        ("VOO", "Vanguard S&P 500"),
+        ("GLD", "SPDR Gold Shares"),
     ]
 
     etf_signals = []
-    for ticker, name, stooq_sym in etf_configs:
-        print(f"  [ETF] {ticker} (Stooq)...")
-        prices = stooq_daily_close(stooq_sym, days=400)
+    for ticker, name in etf_configs:
+        print(f"  [ETF] {ticker} (Yahoo Finance)...")
+        prices = yahoo_daily_close(ticker, days=400)
         if prices.empty or len(prices) < 5:
-            print(f"  [ETF] {ticker} Stooq 無資料，改用 Alpha Vantage...")
+            print(f"  [ETF] {ticker} Yahoo 無資料，改用 Alpha Vantage...")
             prices = av_daily_close(ticker, av_key, days=400)
         if prices.empty or len(prices) < 5:
             print(f"  [WARN] {ticker} 無資料，跳過")
