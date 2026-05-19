@@ -144,6 +144,56 @@ def twse_latest_close(stock_no: str) -> tuple[float, float]:
 
 
 # ─────────────────────────────────────────────
+# FinMind API（台灣股市備援，免費）
+# ─────────────────────────────────────────────
+
+def finmind_daily_close(stock_no: str, days: int = 400) -> pd.Series:
+    """
+    FinMind 免費 API 擷取台灣股票日收盤價（含 bond ETF）
+    無需 API key，適合 TWSE STOCK_DAY 無法取得的股票
+    https://api.finmindtrade.com/api/v4/data
+    """
+    start_date = (datetime.now() - timedelta(days=days + 60)).strftime("%Y-%m-%d")
+    url = "https://api.finmindtrade.com/api/v4/data"
+    params = {
+        "dataset": "TaiwanStockPrice",
+        "data_id": stock_no,
+        "start_date": start_date,
+    }
+    try:
+        r = requests.get(
+            url, params=params, timeout=20,
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        )
+        if r.status_code != 200:
+            print(f"  [FinMind] {stock_no} 狀態碼 {r.status_code}")
+            return pd.Series(dtype=float)
+        data = r.json()
+        if data.get("status") != 200:
+            print(f"  [FinMind] {stock_no} API status={data.get('status')}")
+            return pd.Series(dtype=float)
+        rows = data.get("data", [])
+        if not rows:
+            print(f"  [FinMind] {stock_no} 無資料")
+            return pd.Series(dtype=float)
+        records = {}
+        for row in rows:
+            try:
+                records[row["date"]] = float(row["close"])
+            except Exception:
+                continue
+        if not records:
+            return pd.Series(dtype=float)
+        series = pd.Series(records).sort_index()
+        series = series[series > 0]
+        print(f"  [FinMind] {stock_no} 取得 {len(series)} 筆，最新={series.iloc[-1]:.2f}")
+        return series.tail(days)
+    except Exception as e:
+        print(f"  [FinMind] {stock_no}: {e}")
+        return pd.Series(dtype=float)
+
+
+# ─────────────────────────────────────────────
 # Yahoo Finance（US ETF 免費備援，取代已失效的 Stooq）
 # ─────────────────────────────────────────────
 
