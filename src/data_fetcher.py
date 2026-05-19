@@ -149,44 +149,50 @@ def twse_latest_close(stock_no: str) -> tuple[float, float]:
 
 def yahoo_daily_close(symbol: str, days: int = 400) -> pd.Series:
     """
-    Yahoo Finance 直接 HTTP 下載日線 CSV，不需 API key。
-    symbol: 如 'VOO', 'GLD', '^VIX'
+    Yahoo Finance v8 Chart API（JSON）取得日線收盤價。
+    v7 CSV download 需要認證，改用 v8 chart endpoint 不需 cookie。
+    symbol: 如 'VOO', 'GLD', '^VIX', '0050.TW'
     """
-    from io import StringIO
-    period2 = int(time.time())
-    period1 = period2 - (days + 60) * 86400   # 多抓 60 天緩衝
-    url = f"https://query1.finance.yahoo.com/v7/finance/download/{symbol}"
-    params = {
-        "period1": period1,
-        "period2": period2,
-        "interval": "1d",
-        "events": "history",
+    range_str = "5y" if days > 500 else "2y"
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
+    params = {"interval": "1d", "range": range_str}
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "application/json",
     }
     try:
-        r = requests.get(
-            url, params=params,
-            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"},
-            timeout=15,
-        )
-        if r.status_code != 200 or len(r.text.strip()) < 30:
+        r = requests.get(url, params=params, headers=headers, timeout=15)
+        if r.status_code != 200:
             print(f"  [Yahoo] {symbol} 狀態碼 {r.status_code}")
             return pd.Series(dtype=float)
 
-        df = pd.read_csv(StringIO(r.text), on_bad_lines="skip")
-        if "Date" not in df.columns or "Close" not in df.columns:
-            print(f"  [Yahoo] {symbol} 欄位異常：{list(df.columns)}")
+        data = r.json()
+        result = data.get("chart", {}).get("result", [])
+        if not result:
+            print(f"  [Yahoo] {symbol} 無 chart result")
             return pd.Series(dtype=float)
 
-        df = df.sort_values("Date").dropna(subset=["Close"])
-        df = df[df["Close"] != "null"]
-        series = pd.Series(
-            pd.to_numeric(df["Close"], errors="coerce").values,
-            index=df["Date"].values,
-        ).dropna()
-        series = series[series > 0]
-        if series.empty:
+        chart = result[0]
+        timestamps = chart.get("timestamp", [])
+        closes = chart.get("indicators", {}).get("quote", [{}])[0].get("close", [])
+
+        if not timestamps or not closes:
+            print(f"  [Yahoo] {symbol} 無時間戳或收盤價")
             return pd.Series(dtype=float)
-        print(f"  [Yahoo] {symbol} 取得 {len(series)} 筆")
+
+        records = {}
+        for ts, c in zip(timestamps, closes):
+            if c is None:
+                continue
+            date_str = datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d")
+            records[date_str] = float(c)
+
+        if not records:
+            return pd.Series(dtype=float)
+
+        series = pd.Series(records).sort_index()
+        series = series[series > 0]
+        print(f"  [Yahoo] {symbol} 取得 {len(series)} 筆，最新={series.iloc[-1]:.2f}")
         return series.tail(days)
     except Exception as e:
         print(f"  [Yahoo] {symbol}: {e}")
