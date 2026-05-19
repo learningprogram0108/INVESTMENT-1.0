@@ -126,8 +126,8 @@ def twse_daily_close(stock_no: str, months: int = 14) -> pd.Series:
                     continue
             time.sleep(0.8)
         except Exception as e:
-            print(f"  [TWSE] {stock_no} {date_str}: {e}")
-            return pd.Series(dtype=float)
+            print(f"  [TWSE] {stock_no} {date_str}: {e}，略過此月繼續")
+            continue
 
     if not all_records:
         return pd.Series(dtype=float)
