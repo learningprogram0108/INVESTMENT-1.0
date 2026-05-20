@@ -418,3 +418,39 @@ def fetch_cape_erp(symbol: str, av_key, rf: float) -> tuple:
 def fetch_hy_spread_fred(fred_key: str) -> float:
     data = fetch_fred("BAMLH0A0HYM2", fred_key, limit=5)
     return round(data[-1], 2) if data else 4.5
+
+
+# ─────────────────────────────────────────────
+# Yahoo Finance 新聞標題（方向四：新聞情緒）
+# ─────────────────────────────────────────────
+
+def yahoo_news_headlines(symbol: str, limit: int = 5) -> list:
+    """
+    取得 Yahoo Finance 最新新聞標題，供 Gemini 新聞情緒分析使用。
+    使用搜尋 API，無需登入或 API key。
+    symbol: 如 'VOO', 'GLD', '0050.TW'
+    """
+    url = "https://query1.finance.yahoo.com/v1/finance/search"
+    params = {
+        "q": symbol,
+        "newsCount": limit,
+        "enableFuzzyQuery": False,
+        "quotesCount": 0,
+    }
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "application/json",
+    }
+    try:
+        r = requests.get(url, params=params, headers=headers, timeout=10)
+        if r.status_code != 200:
+            return []
+        data = r.json()
+        headlines = [n.get("title", "") for n in data.get("news", [])[:limit]
+                     if n.get("title")]
+        if headlines:
+            print(f"  [News] {symbol} 取得 {len(headlines)} 則標題")
+        return headlines
+    except Exception as e:
+        print(f"  [News] {symbol}: {e}")
+        return []

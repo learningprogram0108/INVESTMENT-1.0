@@ -9,7 +9,7 @@ from src.line_builder import (
     build_etf_card, build_bond_card,
 )
 
-DATE = "2026/05/17"
+DATE = "2026/05/20"
 
 # ── 模擬總經指標 ──────────────────────────────────────────
 macro = MacroIndicators(
@@ -32,9 +32,15 @@ sig_0050 = ETFSignal(
     vix=18.4, vix_bollinger_break=False,
     cape=22.1, erp=2.38, predicted_10y_return=4.7,
     kelly_f=0.3667,
-    cycle_phase="🟢 希望（成長）",
+    cycle_phase="🟢 成長期（常態擴張）",
     fund_multiplier=1.0, multiplier_mode="鑑賞家巡航",
     macd_line=0.8432, macd_signal=0.5217, macd_hist=0.3215,
+    # 技術指標
+    rsi=58.3, bb_pct=0.67, sharpe_1y=1.24, max_drawdown=-8.5,
+    # 多 Agent 信心
+    technical_score=62.4, value_score=55.8, macro_score=61.1,
+    combined_confidence=60.2, confidence_signal="買  入",
+    news_headlines=["台灣 50 ETF 淨值創年內新高", "外資連續買超台股 ETF"],
 )
 
 sig_bond = ETFSignal(
@@ -45,9 +51,15 @@ sig_bond = ETFSignal(
     vix=18.4, vix_bollinger_break=False,
     cape=None, erp=None, predicted_10y_return=None,
     kelly_f=0.2857,
-    cycle_phase="🟢 希望（成長）",
+    cycle_phase="🟢 成長期（常態擴張）",
     fund_multiplier=1.0, multiplier_mode="鑑賞家巡航",
     macd_line=None, macd_signal=None, macd_hist=None,
+    # 技術指標
+    rsi=42.1, bb_pct=0.38, sharpe_1y=0.31, max_drawdown=-12.3,
+    # 多 Agent 信心（無估值）
+    technical_score=48.2, value_score=None, macro_score=55.0,
+    combined_confidence=51.1, confidence_signal="持  有",
+    news_headlines=[],
 )
 
 sig_voo = ETFSignal(
@@ -58,9 +70,15 @@ sig_voo = ETFSignal(
     vix=18.4, vix_bollinger_break=False,
     cape=27.8, erp=1.95, predicted_10y_return=3.2,
     kelly_f=0.3619,
-    cycle_phase="🟢 希望（成長）",
+    cycle_phase="🟢 成長期（常態擴張）",
     fund_multiplier=1.0, multiplier_mode="鑑賞家巡航",
     macd_line=3.2145, macd_signal=2.1087, macd_hist=1.1058,
+    # 技術指標
+    rsi=61.5, bb_pct=0.72, sharpe_1y=1.45, max_drawdown=-6.2,
+    # 多 Agent 信心
+    technical_score=58.8, value_score=47.3, macro_score=61.1,
+    combined_confidence=55.4, confidence_signal="買  入",
+    news_headlines=["S&P 500 hits record high on tech rally", "Fed signals rate cuts ahead"],
 )
 
 sig_gld = ETFSignal(
@@ -71,9 +89,15 @@ sig_gld = ETFSignal(
     vix=18.4, vix_bollinger_break=False,
     cape=None, erp=None, predicted_10y_return=None,
     kelly_f=0.1833,
-    cycle_phase="🟢 希望（成長）",
+    cycle_phase="🟢 成長期（常態擴張）",
     fund_multiplier=1.0, multiplier_mode="鑑賞家巡航",
     macd_line=1.0234, macd_signal=1.2156, macd_hist=-0.1922,
+    # 技術指標
+    rsi=54.7, bb_pct=0.81, sharpe_1y=0.92, max_drawdown=-4.8,
+    # 多 Agent 信心（無估值）
+    technical_score=52.4, value_score=None, macro_score=61.1,
+    combined_confidence=55.8, confidence_signal="買  入",
+    news_headlines=["Gold surges amid geopolitical uncertainty", "Central banks increase gold reserves"],
 )
 
 # ── 早盤訊息 ─────────────────────────────────────────────

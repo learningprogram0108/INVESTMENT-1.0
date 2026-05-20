@@ -90,6 +90,42 @@ def _pred_color(r: float) -> str:
     if r > 2:   return "#EF9F27"
     return "#E24B4A"
 
+def _rsi_color(v: float) -> str:
+    if v > 70: return "#E24B4A"   # 超買
+    if v < 30: return "#1D9E75"   # 超賣
+    return "#888888"
+
+def _bb_color(v: float) -> str:
+    if v > 1:  return "#E24B4A"   # 突破上軌
+    if v < 0:  return "#1D9E75"   # 突破下軌
+    return "#888888"
+
+def _sharpe_color(v: float) -> str:
+    if v > 1.0: return "#1D9E75"
+    if v > 0:   return "#EF9F27"
+    return "#E24B4A"
+
+def _mdd_color(v: float) -> str:
+    if v < -20: return "#E24B4A"
+    if v < -10: return "#EF9F27"
+    return "#888888"
+
+def _conf_color(score: float) -> str:
+    """多 Agent 信心分數顏色"""
+    if score >= 72: return "#1D9E75"   # 強力買入
+    if score >= 58: return "#4CAF83"   # 買入
+    if score >= 42: return "#888888"   # 持有
+    if score >= 28: return "#EF9F27"   # 賣出
+    return "#E24B4A"                   # 強力賣出
+
+def _signal_color(signal: str) -> str:
+    colors = {
+        "強力買入": "#1D9E75", "買  入": "#4CAF83",
+        "持  有":   "#888888", "賣  出": "#EF9F27",
+        "強力賣出": "#E24B4A",
+    }
+    return colors.get(signal, "#888888")
+
 # ─────────────────────────────────────────────
 # Flex 元件
 # ─────────────────────────────────────────────
@@ -287,6 +323,20 @@ def build_etf_card(sig: ETFSignal, date_str: str, session: str) -> dict:
              "突破上軌 ⚠️" if sig.vix_bollinger_break else "未突破",
              "#E24B4A" if sig.vix_bollinger_break else "#1D9E75"),
         _sep(),
+        _section("技術動能"),
+        _row("RSI (14)",
+             f"{sig.rsi:.1f}  {'⚠超買' if sig.rsi > 70 else '⚠超賣' if sig.rsi < 30 else '正常'}",
+             _rsi_color(sig.rsi)),
+        _row("布林帶 %B",
+             f"{sig.bb_pct:.2f}  {'突破上軌' if sig.bb_pct > 1 else '突破下軌' if sig.bb_pct < 0 else '帶內'}",
+             _bb_color(sig.bb_pct)),
+        _row("Sharpe (1Y)",
+             f"{sig.sharpe_1y:+.2f}",
+             _sharpe_color(sig.sharpe_1y)),
+        _row("Max Drawdown",
+             f"{sig.max_drawdown:+.1f}%",
+             _mdd_color(sig.max_drawdown)),
+        _sep(),
         _section("估值"),
         _row("CAPE / PE", cape_str,
              "#E24B4A" if (sig.cape or 0) > 35 else
@@ -325,6 +375,25 @@ def build_etf_card(sig: ETFSignal, date_str: str, session: str) -> dict:
                 }
             ]
         },
+        _sep(),
+        _section("AI 多 Agent 信心"),
+        _row("技術 Agent",
+             f"{sig.technical_score:.0f}/100",
+             _conf_color(sig.technical_score)),
+        _row("基本面 Agent",
+             f"{sig.value_score:.0f}/100" if sig.value_score is not None else "N/A（債券）",
+             _conf_color(sig.value_score) if sig.value_score is not None else "#888888"),
+        _row("總經 Agent",
+             f"{sig.macro_score:.0f}/100",
+             _conf_color(sig.macro_score)),
+        _row("綜合信心",
+             (f"{'█' * int(sig.combined_confidence // 10)}"
+              f"{'░' * (10 - int(sig.combined_confidence // 10))}"
+              f"  {sig.combined_confidence:.0f}%"),
+             _conf_color(sig.combined_confidence)),
+        _row("投組建議",
+             sig.confidence_signal,
+             _signal_color(sig.confidence_signal)),
         _advice_box(
             ADVICE.get(sig.multiplier_mode, "維持常態配置。"),
             ADVICE_BG.get(sig.multiplier_mode, "#f8f8f8"),

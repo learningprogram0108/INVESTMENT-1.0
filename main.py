@@ -1,7 +1,8 @@
 """
-LINE 投資早報主程式 v4.2
+LINE 投資早報主程式 v5 — ai-hedge-fund 多 Agent 架構
 SESSION=morning → 09:30 TST 早盤（總經 + 0050 + 00679B）
-SESSION=evening → 22:00 TST 夜盤（VOO）
+SESSION=evening → 22:00 TST 夜盤（VOO + GLD）
+新增：RSI/BB%B/Sharpe/MDD、多 Agent 信心分數、新聞情緒
 """
 
 import os, sys
@@ -16,6 +17,14 @@ from src.line_builder import (
     send_line_messages,
 )
 from src.gemini_summary import build_gemini_summary
+from src.data_fetcher import yahoo_news_headlines
+
+
+def _fetch_news(etf_signals: list) -> None:
+    """為每個 ETF 信號抓取最新新聞標題（供 Gemini 分析用）"""
+    for sig in etf_signals:
+        if not sig.news_headlines:
+            sig.news_headlines = yahoo_news_headlines(sig.ticker, limit=3)
 
 
 def main():
@@ -43,6 +52,7 @@ def main():
             print("[ERROR] AV_API_KEY 未設定")
             sys.exit(1)
         macro, etf_signals, vix = run_morning_session(fred_key, av_keys)
+        _fetch_news(etf_signals)
         messages.append(build_text_message("morning", macro, etf_signals, date_str))
         gemini_msg = build_gemini_summary(macro, etf_signals, "morning", gemini_key)
         if gemini_msg:
@@ -60,6 +70,7 @@ def main():
             print("[ERROR] AV_API_KEY 未設定")
             sys.exit(1)
         macro, etf_signals, vix = run_evening_session(fred_key, av_keys)
+        _fetch_news(etf_signals)
         messages.append(build_text_message(
             "evening", macro, etf_signals, date_str))
         gemini_msg = build_gemini_summary(macro, etf_signals, "evening", gemini_key)
