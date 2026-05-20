@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-20T16:34:06+08:00",
+  "generated_at": "2026-05-20T18:11:33+08:00",
   "macro": {
     "us10y": 4.61,
     "us02y": 4.07,
@@ -18,6 +18,52 @@
     ],
     "pmi_second_deriv": 1.7
   },
+  "regime": {
+    "regime": "RISK_ON",
+    "credit": "正常",
+    "pmi_trend": "加速擴張",
+    "curve": "正常",
+    "recession_flag": false
+  },
+  "signal_lights": {
+    "VOO": {
+      "light": "🟡 維持",
+      "reason": "RSI54正常、RISK_ON順風",
+      "prev_light": "",
+      "changed": false
+    },
+    "QQQ": {
+      "light": "🟡 維持",
+      "reason": "RSI57正常、RISK_ON順風",
+      "prev_light": "",
+      "changed": false
+    },
+    "GLD": {
+      "light": "🟡 維持",
+      "reason": "Z=+0.2、RISK_ON順風",
+      "prev_light": "",
+      "changed": false
+    },
+    "VGIT": {
+      "light": "🔴 減碼",
+      "reason": "RISK_ON順風",
+      "prev_light": "",
+      "changed": false
+    },
+    "TYD": {
+      "light": "🔴 減碼",
+      "reason": "RISK_ON順風",
+      "prev_light": "",
+      "changed": false
+    },
+    "GRID": {
+      "light": "🔴 減碼",
+      "reason": "RISK_ON順風",
+      "prev_light": "",
+      "changed": false
+    }
+  },
+  "tail_risks": [],
   "etf_signals": [
     {
       "ticker": "VOO",
@@ -40,9 +86,27 @@
       "fund_multiplier": 0.5,
       "multiplier_mode": "刺客防禦",
       "news_headlines": [
-        "Jeff Hook’s Blunt Warning: Private Equity Fees Are Destroying Returns for Retail Investors",
-        "Japan ETFs Are Up 41%. Here’s How to Play the Takaichi Boom",
-        "What Nvidia Earnings Mean for VOO and QQQ"
+        {
+          "title": "Jeff Hook’s Blunt Warning: Private Equity Fees Are Destroying Returns for Retail Investors",
+          "url": "https://finance.yahoo.com/m/8be08981-0927-3598-85e3-5b64bee68c1f/jeff-hook%E2%80%99s-blunt-warning%3A.html",
+          "publisher": "24/7 Wall St.",
+          "summary": "",
+          "title_zh": "傑夫·胡克警告：私募股權費用正侵蝕散戶報酬"
+        },
+        {
+          "title": "Japan ETFs Are Up 41%. Here’s How to Play the Takaichi Boom",
+          "url": "https://finance.yahoo.com/m/ac500ab2-4e24-3a0c-b468-8c865d7d956e/japan-etfs-are-up-41%25.-here%E2%80%99s.html",
+          "publisher": "etf.com",
+          "summary": "",
+          "title_zh": "日本ETF漲41%，如何布局高市早苗行情"
+        },
+        {
+          "title": "What Nvidia Earnings Mean for VOO and QQQ",
+          "url": "https://finance.yahoo.com/m/2e47f5d9-5c15-3c2a-9495-4b08599a0d1d/what-nvidia-earnings-mean-for.html",
+          "publisher": "etf.com",
+          "summary": "",
+          "title_zh": "輝達財報對VOO與QQQ的影響"
+        }
       ]
     },
     {
@@ -66,9 +130,27 @@
       "fund_multiplier": 0.5,
       "multiplier_mode": "刺客防禦",
       "news_headlines": [
-        "Jeff Hook’s Blunt Warning: Private Equity Fees Are Destroying Returns for Retail Investors",
-        "What Nvidia Earnings Mean for VOO and QQQ",
-        "Retail Returns, Momo Retreats, NVIDIA Looms"
+        {
+          "title": "Jeff Hook’s Blunt Warning: Private Equity Fees Are Destroying Returns for Retail Investors",
+          "url": "https://finance.yahoo.com/m/8be08981-0927-3598-85e3-5b64bee68c1f/jeff-hook%E2%80%99s-blunt-warning%3A.html",
+          "publisher": "24/7 Wall St.",
+          "summary": "",
+          "title_zh": "傑夫·胡克警告：私募股權費用正侵蝕散戶報酬"
+        },
+        {
+          "title": "Stocks Settle Lower on Rising Bond Yields",
+          "url": "https://finance.yahoo.com/m/b6478220-ba36-381e-9fad-e404ff0ed3f5/stocks-settle-lower-on-rising.html",
+          "publisher": "Barchart",
+          "summary": "",
+          "title_zh": "美債殖利率攀升，股市收低"
+        },
+        {
+          "title": "What Nvidia Earnings Mean for VOO and QQQ",
+          "url": "https://finance.yahoo.com/m/2e47f5d9-5c15-3c2a-9495-4b08599a0d1d/what-nvidia-earnings-mean-for.html",
+          "publisher": "etf.com",
+          "summary": "",
+          "title_zh": "輝達財報對VOO與QQQ的影響"
+        }
       ]
     },
     {
@@ -92,9 +174,27 @@
       "fund_multiplier": 0.5,
       "multiplier_mode": "刺客防禦",
       "news_headlines": [
-        "Update: Gold Trading Lower as USD and Yields Rise on Inflation Worries",
-        "Treasury Yields Spike To Trump's Second-Term High, Sinking Gold And S&P 500",
-        "Gold Edges Lower as USD and Yields Rise on Inflation Worries"
+        {
+          "title": "Update: Gold Trading Lower as USD and Yields Rise on Inflation Worries",
+          "url": "https://finance.yahoo.com/markets/commodities/articles/gold-trading-lower-usd-yields-180145200.html",
+          "publisher": "MT Newswires",
+          "summary": "",
+          "title_zh": "更新：通膨擔憂推升美元與殖利率，金價走低"
+        },
+        {
+          "title": "Treasury Yields Spike To Trump's Second-Term High, Sinking Gold And S&P 500",
+          "url": "https://finance.yahoo.com/m/bce5bc99-b928-37bf-838e-c0e5287cc56f/treasury-yields-spike-to.html",
+          "publisher": "Investor's Business Daily",
+          "summary": "",
+          "title_zh": "美債殖利率飆至川普任期新高，拖累金價與標普"
+        },
+        {
+          "title": "Gold Edges Lower as USD and Yields Rise on Inflation Worries",
+          "url": "https://finance.yahoo.com/markets/commodities/articles/gold-edges-lower-usd-yields-134033613.html",
+          "publisher": "MT Newswires",
+          "summary": "",
+          "title_zh": "通膨擔憂推升美元與殖利率，金價小幅走低"
+        }
       ]
     },
     {
@@ -118,8 +218,36 @@
       "fund_multiplier": 0.5,
       "multiplier_mode": "刺客防禦",
       "news_headlines": [
-        "I’m 58 With $1.2 Million Saved. A Financial Planner Said I’m Making One Critical Mistake"
+        {
+          "title": "I’m 58 With $1.2 Million Saved. A Financial Planner Said I’m Making One Critical Mistake",
+          "url": "https://finance.yahoo.com/m/8aff7e17-c1d9-323a-94aa-bd3b57a92ab7/i%E2%80%99m-58-with-%241.2-million.html",
+          "publisher": "24/7 Wall St.",
+          "summary": "",
+          "title_zh": "58歲存120萬美元，理財顧問指我犯了關鍵錯誤"
+        }
       ]
+    },
+    {
+      "ticker": "TYD",
+      "name": "Direxion Daily 7-10 Year Treasury Bull 3x",
+      "price": 22.97,
+      "change_pct": -1.08,
+      "z_score": -2.805,
+      "rsi": 16.0,
+      "bb_pct": -0.081,
+      "sharpe_1y": -0.32,
+      "max_drawdown": -14.4,
+      "macd_hist": -0.1125,
+      "sentiment_score": 42.8,
+      "combined_confidence": 73.1,
+      "confidence_signal": "強力買入",
+      "technical_score": 76.5,
+      "value_score": null,
+      "macro_score": 67.9,
+      "cycle_phase": "⚠️ 樂觀期（利差壓縮）",
+      "fund_multiplier": 0.5,
+      "multiplier_mode": "刺客防禦",
+      "news_headlines": []
     },
     {
       "ticker": "GRID",
@@ -142,19 +270,38 @@
       "fund_multiplier": 0.5,
       "multiplier_mode": "刺客防禦",
       "news_headlines": [
-        "From Copper to Nuclear: 6 ETFs That Cover Every Layer of the Grid Resilience Boom",
-        "The 5 Thematic ETFs Beating the S 500 — and 388 That Aren't",
-        "Top Thematic ETFs: Best Funds for Theme Investing in 2026"
+        {
+          "title": "From Copper to Nuclear: 6 ETFs That Cover Every Layer of the Grid Resilience Boom",
+          "url": "https://finance.yahoo.com/m/82a5ec9c-d00a-355b-ba05-be6a92911ba8/from-copper-to-nuclear%3A-6.html",
+          "publisher": "24/7 Wall St.",
+          "summary": "",
+          "title_zh": "從銅到核能：涵蓋電網韌性熱潮的6檔ETF"
+        },
+        {
+          "title": "The 5 Thematic ETFs Beating the S 500 — and 388 That Aren't",
+          "url": "https://finance.yahoo.com/m/334c088e-2877-3162-81b5-25501ead2612/the-5-thematic-etfs-beating.html",
+          "publisher": "etf.com",
+          "summary": "",
+          "title_zh": "5檔打敗標普500的主題ETF與388檔落後者"
+        },
+        {
+          "title": "Top Thematic ETFs: Best Funds for Theme Investing in 2026",
+          "url": "https://finance.yahoo.com/m/44c1bfaf-6572-3ad5-ab16-16b148e8cdb4/top-thematic-etfs%3A-best-funds.html",
+          "publisher": "etf.com",
+          "summary": "",
+          "title_zh": "2026年最佳主題投資ETF精選"
+        }
       ]
     }
   ],
-  "gemini_analysis": "🌙 AI 傳奇投資人分析\n\n德魯肯米勒（技術）：HOLD 信心30% — 動能收縮且Z分數過高，非趨勢突破點。\n\n巴菲特/葛拉漢（價值）：HOLD 信心40% — 債券估值不適用，權益資產價格處於歷史高位。\n\n索羅斯（總經）：SELL 信心60% — 殖利率飆升強化反射循環，風險資產面臨回調。\n\n蒙格決策：持有\n\n逆向思考三問：\n1. 通膨失控導致聯準會被迫大幅升息。\n2. 美債殖利率飆升對估值的負面壓縮效應。\n3. 錯失科技股動能帶來的潛在超額報酬。\n\n綜合說明：目前市場呈現動能減弱與殖利率飆升的共振，德魯肯米勒指出VOO與QQQ的Z分數分別高達2.48與2.91，顯示價格嚴重偏離均值且動能收縮，進場風險過高。索羅斯觀察到HY利差過度樂觀，掩蓋了殖利率飆升帶來的系統性風險，這導致VOO與VGIT的動態相關係數從0.192上升至0.237，資產間的對沖效應正在失效。蒙格提醒，當前HRP配置建議將90.5%權重放在VOO，但面對殖利率上行的環境，追逐高估值資產並不符合安全邊際原則，建議維持現有部位，靜待市場波動率回歸後再進行再平衡操作，避免在流動性緊縮初期盲目加倉。",
+  "gemini_analysis": "AI 市場解讀\n\n【體制：RISK_ON · 信用正常 · 加速擴張 · 曲線正常】\n\n當前市場處於風險偏好環境，信用利差與景氣動能支持股市表現。VOO與VGIT相關係數升至0.237，顯示總體經濟加速擴張下，股債同漲風險增加，資產間分散效果減弱。目前HRP配置高度集中於VOO，與風險平價模型中配置大量VGIT以平衡波動的邏輯背離。散戶應注意，在實質利率偏高環境下，股市波動率雖處於12.8%的相對低檔，但若通膨預期反彈導致股債相關性進一步攀升，單一持有美股的風險敞口將隨之擴大，需留意組合抗震能力下降的風險。\n\n【各標的信號】\nVOO 🟡 維持 — RSI數值正常，市場風險偏好支撐\nQQQ 🟡 維持 — RSI數值正常，市場風險偏好支撐\nGLD 🟡 維持 — Z分數平穩，市場風險偏好支撐\nVGIT 🔴 減碼 — 市場風險偏好高，債券吸引力低\nTYD 🔴 減碼 — 市場風險偏好高，債券槓桿受壓\nGRID 🔴 減碼 — 市場風險偏好高，板塊動能趨弱",
   "hrp_weights": {
-    "GRID": 0.018,
-    "VOO": 0.0296,
-    "QQQ": 0.0331,
-    "GLD": 0.0249,
-    "VGIT": 0.8944
+    "VOO": 0.0831,
+    "QQQ": 0.05,
+    "VGIT": 0.4332,
+    "TYD": 0.2888,
+    "GLD": 0.0638,
+    "GRID": 0.0812
   },
   "dcc": {
     "tickers": [
@@ -189,5 +336,9 @@
     },
     "dcc_alpha": 0.0324713674929382,
     "dcc_beta": 0.9133662927564189
+  },
+  "tyd_timing": {
+    "score": 55,
+    "label": "可考慮 TYD"
   }
 }
