@@ -14,19 +14,21 @@ from typing import Optional
 from src.data_fetcher import (
     av_daily_close, av_quote,
     fetch_vix_av, fetch_treasury_av,
-    twse_daily_close, twse_latest_close,
-    yahoo_daily_close, finmind_daily_close,
+    yahoo_daily_close,
     fetch_fred, fetch_hy_spread_fred,
 )
+from scipy.cluster.hierarchy import linkage, leaves_list
+from scipy.spatial.distance import squareform
 
 # ─────────────────────────────────────────────
 # 凱利準則參數（各 ETF 獨立）
 # ─────────────────────────────────────────────
 KELLY_PARAMS = {
-    "VOO":       {"p": 0.68, "b": 2.1},
-    "GLD":       {"p": 0.55, "b": 1.5},
-    "0050.TW":   {"p": 0.65, "b": 1.8},
-    "00679B.TW": {"p": 0.60, "b": 1.4},
+    "VOO":  {"p": 0.68, "b": 2.1},
+    "GLD":  {"p": 0.55, "b": 1.5},
+    "QQQ":  {"p": 0.67, "b": 2.0},
+    "VGIT": {"p": 0.62, "b": 1.2},
+    "GRID": {"p": 0.55, "b": 1.6},
 }
 
 # ─────────────────────────────────────────────
@@ -248,6 +250,67 @@ def calc_max_drawdown(prices: pd.Series) -> float:
 
 
 # ─────────────────────────────────────────────
+# HRP：5 資產全組合（VOO / QQQ / GLD / VGIT / GRID）
+# 使用 scipy Ward 聚類
+# ─────────────────────────────────────────────
+
+def calc_hrp_weights(prices_dict: dict) -> dict:
+    """
+    Hierarchical Risk Parity (5 ETFs)
+    prices_dict: {ticker: pd.Series of close prices}
+    Returns: {ticker: float} 合計 ~1.0
+    """
+    tickers = list(prices_dict.keys())
+    n = len(tickers)
+    returns = pd.DataFrame({t: prices_dict[t].pct_change().dropna()
+                             for t in tickers}).dropna()
+    if len(returns) < 20:
+        return {t: round(1.0/n, 4) for t in tickers}
+
+    cov  = returns.cov().values
+    corr = returns.corr().values
+    dist_matrix = np.sqrt(np.clip(0.5 * (1.0 - corr), 0, 1))
+    np.fill_diagonal(dist_matrix, 0.0)
+    condensed = squareform(dist_matrix, checks=False)
+    link = linkage(condensed, method="ward")
+    sorted_idx = leaves_list(link)
+    sorted_tickers = [tickers[i] for i in sorted_idx]
+    cov_sorted = cov[np.ix_(sorted_idx, sorted_idx)]
+
+    weights = _hrp_recursive_bisect(cov_sorted, list(range(n)))
+    result = {sorted_tickers[i]: round(float(weights[i]), 4) for i in range(n)}
+    total = sum(result.values())
+    return {t: round(w / total, 4) for t, w in result.items()}
+
+
+def _hrp_recursive_bisect(cov: np.ndarray, items: list) -> np.ndarray:
+    n_total = cov.shape[0]
+    weights = np.ones(n_total)
+
+    def _bisect(items_subset, alpha):
+        if len(items_subset) <= 1:
+            return
+        mid = len(items_subset) // 2
+        left, right = items_subset[:mid], items_subset[mid:]
+
+        def _cluster_var(idx_list):
+            sub = cov[np.ix_(idx_list, idx_list)]
+            inv_diag = 1.0 / (np.diag(sub) + 1e-12)
+            w = inv_diag / inv_diag.sum()
+            return float(w @ sub @ w)
+
+        v_l, v_r = _cluster_var(left), _cluster_var(right)
+        denom = v_l + v_r + 1e-12
+        for i in left:  weights[i] *= (1.0 - v_l / denom) * alpha
+        for i in right: weights[i] *= (1.0 - v_r / denom) * alpha
+        _bisect(left, 1.0)
+        _bisect(right, 1.0)
+
+    _bisect(items, 1.0)
+    return weights / (weights.sum() + 1e-12)
+
+
+# ─────────────────────────────────────────────
 # 方向二：多 Agent 信心分數
 # ─────────────────────────────────────────────
 
@@ -372,14 +435,14 @@ def _calc_etf_signal(ticker: str, name: str,
     kelly_f = calc_kelly(ticker)
     phase, mult, mode = determine_phase(z, hy_spread, sahm_triggered, vix, kelly_f)
 
-    # CAPE / ERP：00679B 債券不適用
+    # CAPE / ERP：僅適用於股票 ETF（VOO / QQQ）
     cape, erp, pred = None, None, None
-    if "00679B" not in ticker:
+    if ticker in ("VOO", "QQQ"):
         try:
             from src.data_fetcher import fetch_cape_erp
             if hasattr(_calc_etf_signal, "_av_key") and _calc_etf_signal._av_key:
                 cape, erp, pred = fetch_cape_erp(
-                    ticker.replace(".TW", ""),
+                    ticker,
                     _calc_etf_signal._av_key,
                     us10y
                 )
@@ -489,84 +552,45 @@ def fetch_macro(fred_key: str, av_key: str) -> tuple[MacroIndicators, float, flo
 
 
 # ─────────────────────────────────────────────
-# 早盤：0050 + 00679B
+# 單一夜盤：VOO + QQQ + GLD + VGIT + GRID
 # ─────────────────────────────────────────────
 
-def run_morning_session(fred_key: str, av_key: str):
+ETF_UNIVERSE = [
+    ("VOO",  "Vanguard S&P 500"),
+    ("QQQ",  "Invesco QQQ Trust"),
+    ("GLD",  "SPDR Gold Shares"),
+    ("VGIT", "Vanguard Intermediate-Term Treasury"),
+    ("GRID", "First Trust NASDAQ Clean Edge Smart Grid"),
+]
+
+
+def run_evening_session(fred_key: str, av_key) -> tuple:
+    """
+    夜盤模式：22:00 TST（單一會話，覆蓋全部 5 檔 ETF）
+    Returns: (MacroIndicators, list[ETFSignal], float vix, dict hrp_weights)
+    注意：回傳值從 3-tuple 改為 4-tuple
+    """
     print("=" * 50)
-    print("早盤模式：09:30 TST")
+    print("夜盤模式：22:00 TST（VOO / QQQ / GLD / VGIT / GRID）")
     print("=" * 50)
 
     macro, vix, vix_upper, vix_break = fetch_macro(fred_key, av_key)
-
-    etf_configs = [
-        ("0050.TW",   "元大台灣 50",   "0050"),
-        ("00679B.TW", "元大美債 20年", "00679B"),
-    ]
-
     _calc_etf_signal._av_key = av_key
 
+    prices_dict = {}   # 供 HRP 計算
     etf_signals = []
-    for ticker, name, stock_no in etf_configs:
-        print(f"  [ETF] {ticker}...")
-        prices = twse_daily_close(stock_no, months=14)
-        print(f"    TWSE 取得 {len(prices)} 筆")
-        if prices.empty or len(prices) < 2:
-            print(f"  [ETF] {ticker} TWSE 無資料，改用 FinMind...")
-            prices = finmind_daily_close(stock_no, days=400)
-        if prices.empty or len(prices) < 2:
-            print(f"  [ETF] {ticker} FinMind 無資料，改用 Yahoo Finance...")
-            prices = yahoo_daily_close(f"{stock_no}.TW", days=400)
-        if prices.empty or len(prices) < 2:
-            print(f"  [ETF] {ticker} Yahoo 無資料，改用 Alpha Vantage...")
-            prices = av_daily_close(f"{stock_no}.TW", av_key, days=400)
-            if prices.empty or len(prices) < 2:
-                print(f"  [WARN] {ticker} 所有來源均無資料，跳過")
-                continue
 
-        current, prev = float(prices.iloc[-1]), float(prices.iloc[-2])
-        sig = _calc_etf_signal(
-            ticker, name, prices, current, prev,
-            vix, vix_break, macro.hy_spread, macro.us10y,
-            macro.sahm_triggered,
-            pmi_f2=macro.pmi_second_deriv,
-            yield_curve=macro.yield_curve,
-        )
-        etf_signals.append(sig)
-        print(f"    Z={sig.z_score} | 信心={sig.combined_confidence:.0f}% {sig.confidence_signal} | 乘數={sig.fund_multiplier}x")
-
-    return macro, etf_signals, vix
-
-
-# ─────────────────────────────────────────────
-# 夜盤：VOO + GLD
-# ─────────────────────────────────────────────
-
-def run_evening_session(fred_key: str, av_key: str):
-    print("=" * 50)
-    print("夜盤模式：22:00 TST")
-    print("=" * 50)
-
-    macro, vix, vix_upper, vix_break = fetch_macro(fred_key, av_key)
-
-    _calc_etf_signal._av_key = av_key
-
-    etf_configs = [
-        ("VOO", "Vanguard S&P 500"),
-        ("GLD", "SPDR Gold Shares"),
-    ]
-
-    etf_signals = []
-    for ticker, name in etf_configs:
+    for ticker, name in ETF_UNIVERSE:
         print(f"  [ETF] {ticker} (Yahoo Finance)...")
         prices = yahoo_daily_close(ticker, days=400)
         if prices.empty or len(prices) < 5:
             print(f"  [ETF] {ticker} Yahoo 無資料，改用 Alpha Vantage...")
             prices = av_daily_close(ticker, av_key, days=400)
         if prices.empty or len(prices) < 5:
-            print(f"  [WARN] {ticker} 無資料，跳過")
+            print(f"  [WARN] {ticker} 所有來源均無資料，跳過")
             continue
 
+        prices_dict[ticker] = prices
         current = float(prices.iloc[-1])
         prev    = float(prices.iloc[-2])
         sig = _calc_etf_signal(
@@ -579,4 +603,15 @@ def run_evening_session(fred_key: str, av_key: str):
         etf_signals.append(sig)
         print(f"  {ticker}: Z={sig.z_score} | 信心={sig.combined_confidence:.0f}% {sig.confidence_signal} | 乘數={sig.fund_multiplier}x")
 
-    return macro, etf_signals, vix
+    # 5 資產 HRP 配置
+    hrp_weights = {}
+    if len(prices_dict) >= 2:
+        try:
+            hrp_weights = calc_hrp_weights(prices_dict)
+            print(f"  [HRP] {hrp_weights}")
+        except Exception as e:
+            print(f"  [HRP] 計算失敗：{e}")
+            n = len(prices_dict)
+            hrp_weights = {t: round(1.0/n, 4) for t in prices_dict}
+
+    return macro, etf_signals, vix, hrp_weights

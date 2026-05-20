@@ -286,7 +286,7 @@ def build_macro_card(macro: MacroIndicators, date_str: str) -> dict:
 # ─────────────────────────────────────────────
 
 def build_etf_card(sig: ETFSignal, date_str: str, session: str) -> dict:
-    session_label = "09:30 TST" if session == "morning" else "22:00 TST"
+    session_label = "22:00 TST"
 
     cape_str = f"{sig.cape:.1f}x" if sig.cape else "N/A"
     erp_str  = (f"{sig.erp:+.2f}%" if sig.erp is not None else "N/A")
@@ -421,112 +421,35 @@ def build_etf_card(sig: ETFSignal, date_str: str, session: str) -> dict:
 # 卡片：00679B（債券專屬）
 # ─────────────────────────────────────────────
 
-def build_bond_card(sig: ETFSignal, macro: MacroIndicators, date_str: str) -> dict:
-    body_contents = [
-        _section("債券環境"),
-        _row("EMA Z-Score",
-             f"{sig.z_score:+.2f}",
-             _z_color(sig.z_score)),
-        _row("實質利率 (TIPS)",
-             f"{macro.real_rate:+.2f}%",
-             _real_rate_color(macro.real_rate)),
-        _row("US10Y",
-             f"{macro.us10y:.2f}%", "#333333"),
-        _row("殖利率曲線 10y−2y",
-             f"{macro.yield_curve:+.2f}%  {_yield_curve_label(macro.yield_curve)}",
-             _yield_curve_color(macro.yield_curve)),
-        _row("HY 信用利差",
-             f"{macro.hy_spread:.1f}%  {macro.credit_signal}",
-             _spread_color(macro.hy_spread)),
-        _sep(),
-        _section("凱利準則"),
-        _row("f* 最佳資金比例",
-             f"{sig.kelly_f:.3f}  ({sig.kelly_f*100:.1f}%)", "#378ADD"),
-        _row("乘數上限 (f*×3)",
-             f"{sig.kelly_f*3:.1f}x", "#378ADD"),
-        _sep(),
-        _section("資金乘數"),
-        {
-            "type": "box", "layout": "horizontal", "margin": "sm",
-            "contents": [{
-                "type": "box", "layout": "vertical",
-                "backgroundColor": "#f0f0f0",
-                "cornerRadius": "6px", "paddingAll": "8px", "flex": 1,
-                "contents": [
-                    {"type": "text", "text": "建議乘數",
-                     "size": "xxs", "color": "#888888"},
-                    {"type": "text", "text": f"{sig.fund_multiplier}x",
-                     "size": "xl", "weight": "bold",
-                     "color": _mult_color(sig.fund_multiplier)},
-                    {"type": "text", "text": sig.multiplier_mode,
-                     "size": "xxs",
-                     "color": _mult_color(sig.fund_multiplier)},
-                ]
-            }]
-        },
-        _advice_box(
-            ADVICE.get(sig.multiplier_mode, "維持常態配置。"),
-            ADVICE_BG.get(sig.multiplier_mode, "#f8f8f8"),
-            ADVICE_FG.get(sig.multiplier_mode, "#333333"),
-        ),
-    ]
-
-    bubble = {
-        "type": "bubble", "size": "giga",
-        "header": _hero(
-            "00679B  元大美債 20年",
-            f"{date_str}  ·  09:30 TST",
-            sig.cycle_phase, sig.fund_multiplier, sig.multiplier_mode
-        ),
-        "body": {
-            "type": "box", "layout": "vertical",
-            "paddingAll": "12px", "spacing": "none",
-            "contents": body_contents,
-        }
-    }
-    return {"type": "flex", "altText": f"00679B 景氣面板 {date_str}",
-            "contents": bubble}
-
 # ─────────────────────────────────────────────
 # 文字訊息
 # ─────────────────────────────────────────────
 
 def build_text_message(session: str, macro: MacroIndicators,
                        etf_signals: list, date_str: str) -> dict:
-    if session == "morning":
-        phases = [f"{s.ticker.replace('.TW','')}={s.multiplier_mode}" for s in etf_signals]
-        phase_str = "  ".join(phases) if phases else "資料擷取中"
-        # 薩姆警報併入文字訊息（不單獨佔一則，避免擠掉卡片）
-        if macro.sahm_triggered:
-            warn = (
-                f"\n🚨【衰退警報】薩姆={macro.sahm_indicator:.2f}%  "
-                f"衰退機率={macro.recession_prob:.0f}%"
-            )
-        else:
-            warn = ""
-        text = (
-            f"☀️ {date_str} 早安{warn}\n\n"
-            f"衰退機率 {macro.recession_prob:.0f}%  |  HY利差 {macro.hy_spread:.1f}%\n"
-            f"{phase_str}\n\n"
-            f"詳細指標請查看下方卡片。"
+    """夜盤文字摘要（Msg 1）：列出全部 5 ETF + 宏觀概況"""
+    warn = ""
+    if macro.sahm_triggered:
+        warn = (
+            f"\n🚨【衰退警報】薩姆={macro.sahm_indicator:.2f}%  "
+            f"衰退機率={macro.recession_prob:.0f}%"
         )
-    else:
-        if etf_signals:
-            lines = []
-            for s in etf_signals:
-                ticker = s.ticker.replace(".TW", "")
-                lines.append(
-                    f"{ticker}：{s.multiplier_mode}  乘數 {s.fund_multiplier}x  "
-                    f"Z={s.z_score:+.2f}"
-                )
-            etf_str = "\n".join(lines)
-            text = (
-                f"🌙 {date_str} 美股收盤\n\n"
-                f"{etf_str}\n\n"
-                f"詳細分析請查看下方卡片。"
-            )
-        else:
-            text = f"🌙 {date_str} 資料暫時無法取得，請稍後手動確認。"
+
+    lines = []
+    for s in etf_signals:
+        lines.append(
+            f"{s.ticker}：{s.multiplier_mode}  乘數 {s.fund_multiplier}x  "
+            f"Z={s.z_score:+.2f}"
+        )
+    etf_str = "\n".join(lines) if lines else "資料擷取中"
+
+    text = (
+        f"🌙 {date_str} 美股收盤{warn}\n\n"
+        f"衰退機率 {macro.recession_prob:.0f}%  |  HY利差 {macro.hy_spread:.1f}%\n\n"
+        f"{etf_str}\n\n"
+        f"完整 ETF 分析、HRP 配置、DCC-GARCH 請查看 Web 儀表板。\n"
+        f"詳細 VOO / QQQ 卡片請查看下方訊息。"
+    )
     return {"type": "text", "text": text}
 
 # ─────────────────────────────────────────────

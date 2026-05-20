@@ -70,9 +70,9 @@ def _call_with_retry(url: str, headers: dict, payload: dict):
     return None
 
 
-def _format_data(macro: MacroIndicators, etf_signals: list, session: str) -> str:
+def _format_data(macro: MacroIndicators, etf_signals: list, session: str, dcc_text: str = "") -> str:
     """組裝多 Agent 結構化輸入數據"""
-    session_label = "早盤（台股 09:30 TST）" if session == "morning" else "夜盤（美股 22:00 TST）"
+    session_label = "夜盤（美股 22:00 TST）"
 
     # ── 技術面數據 ──
     tech_lines = [f"【{session_label} 技術面數據】"]
@@ -133,6 +133,8 @@ def _format_data(macro: MacroIndicators, etf_signals: list, session: str) -> str
     all_parts = tech_lines + [""] + val_lines + [""] + macro_lines
     if news_lines:
         all_parts += [""] + news_lines
+    if dcc_text:
+        all_parts += ["", dcc_text]
     return "\n".join(all_parts)
 
 
@@ -161,6 +163,7 @@ def build_gemini_summary(
     etf_signals: list,
     session: str,
     api_key: str,
+    dcc_text: str = "",
 ) -> dict | None:
     if not api_key:
         print("  [Gemini] 未設定 GEMINI_API_KEY，略過")
@@ -170,7 +173,7 @@ def build_gemini_summary(
         return None
 
     print("  [Gemini] 產生 AI 多視角摘要...")
-    data_text    = _format_data(macro, etf_signals, session)
+    data_text    = _format_data(macro, etf_signals, session, dcc_text=dcc_text)
     user_content = _build_prompt(data_text, etf_signals)
 
     payload = {
@@ -190,8 +193,7 @@ def build_gemini_summary(
 
     try:
         text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-        session_emoji = "☀️" if session == "morning" else "🌙"
-        full_text = f"{session_emoji} AI 傳奇投資人分析\n\n{text}"
+        full_text = f"🌙 AI 傳奇投資人分析\n\n{text}"
         print(f"  [Gemini] 摘要完成（{len(text)} 字）")
         return {"type": "text", "text": full_text}
     except (KeyError, IndexError) as e:

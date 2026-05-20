@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="每日量化投資儀表板 — DCC-GARCH + HRP + AI 分析">
+  <title>投資儀表板</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="header-brand">
+        <span class="header-icon">📊</span>
+        <h1>投資儀表板</h1>
+      </div>
+      <div class="header-meta">
+        <span id="report-date">--</span>
+        <span class="sep">·</span>
+        <span id="last-updated">載入中...</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="macro-strip" id="macro-strip">
+    <div class="strip-item">
+      <span class="strip-label">US10Y</span>
+      <span class="strip-val" id="m-us10y">--</span>
+    </div>
+    <div class="strip-item">
+      <span class="strip-label">衰退機率</span>
+      <span class="strip-val" id="m-recprob">--</span>
+    </div>
+    <div class="strip-item">
+      <span class="strip-label">HY利差</span>
+      <span class="strip-val" id="m-hyspread">--</span>
+    </div>
+    <div class="strip-item">
+      <span class="strip-label">ISM PMI</span>
+      <span class="strip-val" id="m-pmi">--</span>
+    </div>
+    <div class="strip-item">
+      <span class="strip-label">實質利率</span>
+      <span class="strip-val" id="m-realrate">--</span>
+    </div>
+    <div class="strip-item">
+      <span class="strip-label">Sahm</span>
+      <span class="strip-val" id="m-sahm">--</span>
+    </div>
+  </div>
+
+  <main class="main-grid">
+    <section class="card ai-card" id="ai-section">
+      <h2 class="card-title">🌙 AI 傳奇投資人分析</h2>
+      <pre id="ai-text" class="ai-text">載入中...</pre>
+    </section>
+
+    <section class="card hrp-card" id="hrp-section">
+      <h2 class="card-title">HRP 風險平衡配置 <span class="card-sub">（5 資產，Ward 聚類）</span></h2>
+      <div class="hrp-inner">
+        <div class="hrp-chart-wrap">
+          <canvas id="hrpChart" width="200" height="200"></canvas>
+        </div>
+        <ul class="hrp-legend" id="hrp-legend"></ul>
+      </div>
+    </section>
+
+    <section class="card dcc-card" id="dcc-section">
+      <h2 class="card-title">DCC-GARCH(1,1) <span class="card-sub">（VOO / VGIT / GLD）</span></h2>
+      <div id="dcc-content"><p class="loading-msg">載入中...</p></div>
+    </section>
+
+    <section class="etf-grid-wrap">
+      <h2 class="section-title">ETF 信號</h2>
+      <div class="etf-grid" id="etf-grid">
+        <p class="loading-msg">載入中...</p>
+      </div>
+    </section>
+
+    <section class="card news-card" id="news-section">
+      <h2 class="card-title">最新新聞</h2>
+      <div id="news-container"><p class="loading-msg">載入中...</p></div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>資料來源：Yahoo Finance · Alpha Vantage · FRED · Google Gemini</p>
+    <p>本報告由量化系統自動生成，僅供參考，不構成投資建議。</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
