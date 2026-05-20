@@ -73,6 +73,48 @@
     sahm.className = 'strip-val ' + (m.sahm_triggered ? 'c-red' : 'c-grn');
   }
 
+  // ── Regime Banner ──
+  function renderRegime(data) {
+    const r = data.regime;
+    if (!r) return;
+
+    const badge   = el('regime-badge');
+    const details = el('regime-details');
+    const banner  = el('regime-banner');
+
+    const REGIME_CFG = {
+      'RISK_ON':     { text: '🟢 RISK ON',     cls: 'regime-on'     },
+      'TRANSITION':  { text: '🟡 TRANSITION',  cls: 'regime-trans'  },
+      'RISK_OFF':    { text: '🔴 RISK OFF',    cls: 'regime-off'    },
+    };
+    const cfg = REGIME_CFG[r.regime] || { text: r.regime, cls: '' };
+    badge.textContent = cfg.text;
+    badge.className   = 'regime-badge ' + cfg.cls;
+    banner.className  = 'regime-banner ' + cfg.cls;
+
+    const parts = [];
+    if (r.credit)    parts.push('信用' + r.credit);
+    if (r.pmi_trend) parts.push(r.pmi_trend);
+    if (r.curve)     parts.push('曲線' + r.curve);
+    if (r.recession_flag) parts.push('⚠ 衰退訊號已觸發');
+    details.textContent = parts.join(' · ');
+  }
+
+  // ── Tail Risk Bar ──
+  function renderTailRisks(data) {
+    const risks = data.tail_risks;
+    const bar   = el('tail-risk-bar');
+    const inner = el('tail-risk-inner');
+    if (!risks || !risks.length) {
+      bar.style.display = 'none';
+      return;
+    }
+    bar.style.display = 'block';
+    inner.innerHTML = risks.map(r =>
+      `<div class="tail-risk-item">⚠ ${r.warning}</div>`
+    ).join('');
+  }
+
   // ── AI Card ──
   function renderAI(data) {
     el('ai-text').textContent = data.gemini_analysis || '（AI 分析暫無資料）';
@@ -192,20 +234,32 @@
   }
 
   // ── ETF Cards ──
-  function renderETFCards(signals) {
+  function renderETFCards(signals, signalLights) {
     const grid = el('etf-grid');
     if (!signals || !signals.length) {
       grid.innerHTML = '<p class="loading-msg">無 ETF 資料</p>';
       return;
     }
     grid.innerHTML = '';
+    const sl = signalLights || {};
 
     signals.forEach(sig => {
-      const chgPos = sig.change_pct >= 0;
-      const confColor = sig.combined_confidence >= 58 ? 'c-grn'
-                      : sig.combined_confidence >= 42 ? 'c-dim'
-                      : 'c-red';
-      const sigClass = SIGNAL_CLASS[sig.confidence_signal] || 'badge-hold';
+      const chgPos    = sig.change_pct >= 0;
+      const sigLight  = sl[sig.ticker] || {};
+      const light     = sigLight.light     || '';
+      const reason    = sigLight.reason    || '';
+      const prevLight = sigLight.prev_light || '';
+      const changed   = sigLight.changed   || false;
+
+      // 信號燈樣式
+      const lightClass = light.includes('🟢') ? 'sl-green'
+                       : light.includes('🔴') ? 'sl-red'
+                       : 'sl-yellow';
+
+      // delta 標籤（僅在改變時顯示）
+      const deltaHtml = changed
+        ? `<span class="sl-delta">${prevLight} → ${light}</span>`
+        : '';
 
       const card = document.createElement('div');
       card.className = 'etf-card';
@@ -222,6 +276,14 @@
             <span class="etf-chg ${chgPos ? 'chg-pos' : 'chg-neg'}">${sign(sig.change_pct)}${fmt(sig.change_pct)}%</span>
           </div>
         </div>
+
+        ${light ? `
+        <div class="signal-light-row ${lightClass}">
+          <span class="sl-light">${light}</span>
+          <span class="sl-reason">${reason}</span>
+          ${deltaHtml}
+        </div>` : ''}
+
         <div class="etf-metrics">
           <div class="metric">
             <span class="metric-label">Z-Score</span>
@@ -249,8 +311,6 @@
           </div>
         </div>
         <div class="etf-footer">
-          <span class="signal-badge ${sigClass}">${sig.confidence_signal}</span>
-          <span class="etf-conf ${confColor}">信心 ${fmt(sig.combined_confidence, 0)}%</span>
           <span class="etf-phase">${sig.cycle_phase}</span>
         </div>
       `;
@@ -310,12 +370,14 @@
       const data = await resp.json();
 
       renderHeader(data);
+      renderRegime(data);
+      renderTailRisks(data);
       renderMacroStrip(data.macro);
       renderAI(data);
       renderHRP(data.hrp_weights);
       renderTYD(data);
       renderDCC(data.dcc);
-      renderETFCards(data.etf_signals);
+      renderETFCards(data.etf_signals, data.signal_lights);
       renderNews(data.etf_signals);
     } catch (err) {
       console.error('[app]', err);

@@ -726,3 +726,198 @@ def run_evening_session(fred_key: str, av_key) -> tuple:
             hrp_weights = {t: round(1.0/n, 4) for t in prices_dict}
 
     return macro, etf_signals, vix, hrp_weights, tyd_timing
+
+
+# ─────────────────────────────────────────────
+# 市場體制偵測器（純規則，不依賴 LLM）
+# ─────────────────────────────────────────────
+
+def detect_market_regime(macro: MacroIndicators) -> dict:
+    """
+    依信用面、景氣面、就業面、殖利率曲線四維度判斷市場體制。
+    Returns:
+        regime:         "RISK_ON" | "TRANSITION" | "RISK_OFF"
+        credit:         "正常" | "偏緊" | "緊縮"
+        pmi_trend:      "加速擴張" | "減速擴張" | "觸底回升" | "加速收縮"
+        curve:          "正常" | "倒掛" | "深度倒掛"
+        recession_flag: bool
+    """
+    # 信用面
+    if macro.hy_spread > 5.0:
+        credit, credit_score = "緊縮", 0
+    elif macro.hy_spread > 4.0:
+        credit, credit_score = "偏緊", 1
+    else:
+        credit, credit_score = "正常", 2
+
+    # 景氣面（PMI 水位 + 二階導數）
+    pmi_val = macro.ism_pmi[-1] if macro.ism_pmi else 50.0
+    if macro.pmi_second_deriv > 0 and pmi_val >= 50:
+        pmi_trend, pmi_score = "加速擴張", 2
+    elif macro.pmi_second_deriv < 0 and pmi_val >= 50:
+        pmi_trend, pmi_score = "減速擴張", 1
+    elif macro.pmi_second_deriv > 0 and pmi_val < 50:
+        pmi_trend, pmi_score = "觸底回升", 1
+    else:
+        pmi_trend, pmi_score = "加速收縮", 0
+
+    # 就業面（薩姆 or 米切茲）
+    recession_flag = macro.sahm_triggered or macro.michez_triggered
+
+    # 殖利率曲線
+    if macro.yield_curve < -0.5:
+        curve, curve_score = "深度倒掛", 0
+    elif macro.yield_curve < 0:
+        curve, curve_score = "倒掛", 1
+    else:
+        curve, curve_score = "正常", 2
+
+    # 綜合體制裁決
+    if recession_flag or (credit_score == 0 and curve_score == 0):
+        regime = "RISK_OFF"
+    elif credit_score == 2 and pmi_score >= 1 and not recession_flag:
+        regime = "RISK_ON"
+    else:
+        regime = "TRANSITION"
+
+    return {
+        "regime":         regime,
+        "credit":         credit,
+        "pmi_trend":      pmi_trend,
+        "curve":          curve,
+        "recession_flag": recession_flag,
+    }
+
+
+def calc_signal_light(sig: ETFSignal, regime: dict) -> dict:
+    """
+    三色信號燈 — 純量化規則，禁止 LLM 介入結論。
+    Returns {"light": "🟢 加碼"|"🟡 維持"|"🔴 減碼", "reason": str}
+    """
+    score   = 0
+    reasons = []
+
+    # ① MACD 柱（趨勢動能）
+    if (sig.macd_hist or 0) > 0:
+        score += 1
+        reasons.append("MACD擴大")
+
+    # ② RSI 健康動能區間 45~68
+    if 45 <= sig.rsi <= 68:
+        score += 1
+        reasons.append(f"RSI{sig.rsi:.0f}正常")
+
+    # ③ Z-Score 回歸區間 -0.5~1.5
+    if -0.5 <= sig.z_score <= 1.5:
+        score += 1
+        reasons.append(f"Z={sig.z_score:+.1f}")
+
+    # ④ 體制乘數（最關鍵）
+    if regime["regime"] == "RISK_OFF":
+        score = min(score, 1)          # 強制壓低至不超過「維持」
+        reasons.append("RISK_OFF壓制")
+    elif regime["regime"] == "RISK_ON":
+        reasons.append("RISK_ON順風")
+    else:
+        reasons.append("TRANSITION觀望")
+
+    # ⑤ 估值懲罰（ERP < 1%）
+    if sig.erp is not None and sig.erp < 1.0:
+        score -= 1
+        reasons.append(f"ERP{sig.erp:+.2f}%低")
+
+    # ⑥ VIX 恐慌
+    if sig.vix_bollinger_break:
+        score -= 1
+        reasons.append("VIX破布林上軌")
+
+    if score >= 3:
+        light = "🟢 加碼"
+    elif score >= 1:
+        light = "🟡 維持"
+    else:
+        light = "🔴 減碼"
+
+    return {"light": light, "reason": "、".join(reasons[:4])}
+
+
+# ─────────────────────────────────────────────
+# 尾端風險清單（硬編碼，可枚舉的已知風險）
+# ─────────────────────────────────────────────
+
+TAIL_RISK_CHECKLIST = [
+    {
+        "id":        "yield_curve_deep_invert",
+        "condition": lambda m, _s: m.yield_curve < -0.5,
+        "warning":   lambda m, _s: (
+            f"殖利率曲線深度倒掛（{m.yield_curve:+.2f}%），"
+            f"歷史上12-18個月後衰退機率>70%"
+        ),
+    },
+    {
+        "id":        "sahm_trigger",
+        "condition": lambda m, _s: m.sahm_triggered,
+        "warning":   lambda m, _s: (
+            f"薩姆法則觸發（{m.sahm_indicator:.2f}%），"
+            f"就業惡化反射性循環已啟動"
+        ),
+    },
+    {
+        "id":        "hy_spread_spike",
+        "condition": lambda m, _s: m.hy_spread > 5.0,
+        "warning":   lambda m, _s: (
+            f"HY利差={m.hy_spread:.2f}%（信用恐慌），"
+            f"歷史上股市距底部通常仍遠"
+        ),
+    },
+    {
+        "id":        "hy_spread_elevated",
+        "condition": lambda m, _s: 4.0 < m.hy_spread <= 5.0,
+        "warning":   lambda m, _s: (
+            f"HY利差偏高（{m.hy_spread:.2f}%），"
+            f"信用市場偏緊，留意擴散風險"
+        ),
+    },
+    {
+        "id":        "cape_extreme",
+        "condition": lambda _m, sigs: any((s.cape or 0) > 32 for s in sigs),
+        "warning":   lambda _m, sigs: "；".join(
+            f"{s.ticker} CAPE={s.cape:.1f}x（估值歷史極高）"
+            for s in sigs if (s.cape or 0) > 32
+        ),
+    },
+    {
+        "id":        "vix_bollinger",
+        "condition": lambda _m, sigs: any(s.vix_bollinger_break for s in sigs),
+        "warning":   lambda _m, sigs: (
+            f"VIX突破布林上軌（{sigs[0].vix:.1f}），"
+            f"市場恐慌情緒急升，短期波動率風險高"
+        ),
+    },
+    {
+        "id":        "recession_high_prob",
+        "condition": lambda m, _s: m.recession_prob > 40,
+        "warning":   lambda m, _s: (
+            f"衰退機率={m.recession_prob:.0f}%（超40%警戒線），"
+            f"建議審視風險資產部位"
+        ),
+    },
+]
+
+
+def eval_tail_risks(macro: MacroIndicators, etf_signals: list) -> list:
+    """
+    評估所有尾端風險，返回已觸發的警報列表。
+    Returns: list[{"id": str, "warning": str}]
+    """
+    triggered = []
+    for item in TAIL_RISK_CHECKLIST:
+        try:
+            if item["condition"](macro, etf_signals):
+                triggered.append({
+                    "id":      item["id"],
+                    "warning": item["warning"](macro, etf_signals),
+                })
+        except Exception:
+            pass
+    return triggered

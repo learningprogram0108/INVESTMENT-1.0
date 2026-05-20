@@ -1,8 +1,15 @@
 """
-Gemini AI 市場摘要模組 v3 — ai-hedge-fund 角色架構
+Gemini AI 市場解讀模組 v4 — 兩層架構
 模型：gemini-3.1-flash-lite（RPM/15、TPM/250K）
-架構：Druckenmiller（技術動能）+ Buffett/Graham（價值）+ Soros（總經）→ Munger（決策）
-錯誤處理：429/503 指數退避重試，最多 4 次
+
+架構：
+  Layer 1 — 體制敘事：解釋「今天市場是什麼狀態」（純事實，不給建議）
+  Layer 2 — ETF 逐行：解釋「為何每個 ETF 得到這個信號」（翻譯量化結論，禁止更改信號）
+
+設計原則：
+  - Gemini 是「文字翻譯器」，量化邏輯由 quant_engine 負責
+  - 移除傳奇投資人角色（信心 XX% 是假精度，角色名字是身份劇場）
+  - 尾端風險由硬編碼清單觸發，不依賴 LLM 自由發揮
 """
 
 import re
@@ -16,34 +23,22 @@ GEMINI_URL   = (
     f"{GEMINI_MODEL}:generateContent"
 )
 MAX_RETRIES = 4
-BASE_WAIT   = 5  # 秒，指數倍增：5→10→20→40
+BASE_WAIT   = 5   # 指數退避：5→10→20→40s
 
-# ── ai-hedge-fund 角色系統 Prompt ──────────────────
-SYSTEM_PROMPT = """你是一個由四位傳奇投資人組成的分析委員會，各角色嚴格依照其投資哲學進行分析：
+# ── 系統角色（精簡化，移除劇場名字）──────────────────
+SYSTEM_PROMPT = (
+    "你是一位簡潔的宏觀市場評論員，負責將量化分析結果轉譯為中文說明。\n"
+    "工作守則：\n"
+    "① 量化指標的結論已由模型計算完成，你只負責解釋這些結論在當前環境下的意義。\n"
+    "② 禁止自行推導投資建議或更改信號結論。\n"
+    "③ 不使用任何 Markdown 符號（禁止 # ** * - [ ]），全部純文字輸出。\n"
+    "④ 文字直接、精簡、不重複廢話。"
+)
 
-【技術分析師】— 史坦利．德魯肯米勒（Stanley Druckenmiller）
-核心哲學：順勢而為、動能驅動、宏觀視角下的技術執行。
-「我從不買進下跌中的股票，動能確認趨勢，等候突破再進場。」
-根據技術面數據（MACD、RSI、Z-Score、布林帶 %B）判斷價格動能強弱與最佳進場時機。
-當 MACD 柱擴大、RSI 在 50~70 健康動能區間、Z-Score 回歸後突破，評為最佳進場信號。
 
-【價值投資師】— 華倫．巴菲特 + 班傑明．葛拉漢（Warren Buffett + Ben Graham）
-葛拉漢：安全邊際—以大幅低於內在價值買入；市場先生—利用市場情緒波動而非被其左右。
-巴菲特：只購買能理解的護城河企業；價格是你支付的，價值是你得到的。
-根據估值數據（CAPE、ERP、10Y預期報酬）判斷當前價格是否提供足夠的安全邊際。
-ERP > 3% 且 CAPE 合理視為具安全邊際，10Y預期報酬 < 2% 則估值過高需謹慎。
-
-【總經分析師】— 喬治．索羅斯（George Soros）
-核心哲學：反射性理論—市場參與者的預期影響基本面，形成自我強化的順週期循環。
-「市場總是錯的，問題是何時以及錯誤有多嚴重。」
-根據總經數據（薩姆法則、HY利差、PMI動能、殖利率曲線）識別系統性風險與市場失衡。
-HY 利差擴大是信用緊縮信號，Sahm 觸發代表就業惡化開始反射，需立即調降倉位。
-
-【投資組合經理】— 查理．蒙格（Charlie Munger）
-核心哲學：逆向思考（反轉問題）、多元思維模型、「不作蠢事」的長期複利。
-「反轉，永遠要反轉——先問什麼會讓投資失敗，再決定是否進場。」
-綜合三位分析師觀點，用逆向思維剔除虧損情境，給出兼顧安全邊際與機會成本的最終決策。"""
-
+# ─────────────────────────────────────────────
+# 工具函式
+# ─────────────────────────────────────────────
 
 def _call_with_retry(url: str, headers: dict, payload: dict):
     for attempt in range(MAX_RETRIES):
@@ -71,14 +66,104 @@ def _call_with_retry(url: str, headers: dict, payload: dict):
     return None
 
 
-def _format_data(macro: MacroIndicators, etf_signals: list, session: str, dcc_text: str = "") -> str:
-    """組裝多 Agent 結構化輸入數據"""
-    session_label = "夜盤（美股 22:00 TST）"
+def _gemini_call(user_text: str, api_key: str, max_tokens: int = 300) -> str | None:
+    """單次 Gemini API 呼叫，返回純文字或 None"""
+    payload = {
+        "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+        "contents":           [{"role": "user", "parts": [{"text": user_text}]}],
+        "generationConfig":   {"temperature": 0.55, "maxOutputTokens": max_tokens},
+    }
+    headers = {"Content-Type": "application/json"}
+    url     = f"{GEMINI_URL}?key={api_key}"
+    resp    = _call_with_retry(url, headers, payload)
+    if resp is None:
+        return None
+    try:
+        return resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+    except (KeyError, IndexError):
+        return None
 
-    # ── 技術面數據 ──
+
+# ─────────────────────────────────────────────
+# Layer 1 — 體制敘事
+# ─────────────────────────────────────────────
+
+def _build_regime_prompt(
+    macro: MacroIndicators,
+    regime: dict,
+    tail_risks: list,
+    dcc_text: str = "",
+) -> str:
+    """組裝體制敘事的 Prompt 輸入"""
+    pmi_val = macro.ism_pmi[-1] if macro.ism_pmi else 50.0
+
+    lines = [
+        f"【今日市場體制】{regime['regime']}",
+        f"  信用面：{regime['credit']}（HY利差={macro.hy_spread:.2f}%）",
+        f"  景氣面：{regime['pmi_trend']}（ISM PMI={pmi_val:.1f}，動能{'+' if macro.pmi_second_deriv > 0 else ''}{macro.pmi_second_deriv:.3f}）",
+        f"  殖利率曲線：{regime['curve']}（{macro.yield_curve:+.2f}%）",
+        f"  就業衰退訊號：{'已觸發' if regime['recession_flag'] else '未觸發'}",
+        f"  實質利率：{macro.real_rate:+.2f}%　CPI年增：{macro.cpi_yoy:.1f}%",
+    ]
+
+    if dcc_text:
+        lines += ["", dcc_text]
+
+    if tail_risks:
+        lines += ["", "【已觸發尾端風險】"]
+        for r in tail_risks:
+            lines.append(f"  ⚠ {r['warning']}")
+
+    lines += [
+        "",
+        "請用100字以內說明此體制對持有美股ETF散戶的含義。",
+        "只陳述事實與風險，不給具體買賣建議，不重複以上數字。",
+    ]
+    return "\n".join(lines)
+
+
+# ─────────────────────────────────────────────
+# Layer 2 — ETF 逐行信號說明
+# ─────────────────────────────────────────────
+
+def _build_etf_prompt(etf_signals: list, signal_lights: dict) -> str:
+    """組裝 ETF 逐行說明的 Prompt 輸入"""
+    lines = [
+        "以下是量化模型已計算完成的各 ETF 信號燈（禁止更改信號結論）：",
+        "",
+    ]
+    for s in etf_signals:
+        sl = signal_lights.get(s.ticker, {})
+        light  = sl.get("light",  "🟡 維持")
+        reason = sl.get("reason", "")
+        lines.append(f"  {s.ticker}（{s.name}）  {light}  依據：{reason}")
+
+    lines += [
+        "",
+        "請對每個 ETF 輸出一行解釋（15字以內），說明「為什麼是這個信號」。",
+        "格式（嚴格遵守，禁止換行）：",
+        "TICKER 信號燈 — 說明文字",
+        "",
+        "範例：",
+        "VOO 🟢 加碼 — MACD動能強，體制順風",
+        "GLD 🟡 維持 — Z-Score偏高，等待回調",
+    ]
+    return "\n".join(lines)
+
+
+# ─────────────────────────────────────────────
+# 格式化舊版數據（內部用，供 _format_data 向下相容）
+# ─────────────────────────────────────────────
+
+def _format_data(macro: MacroIndicators, etf_signals: list, session: str,
+                 dcc_text: str = "") -> str:
+    """
+    組裝結構化輸入數據（向下相容用，仍可由 preview_messages 驗證 prompt 格式）
+    """
+    session_label = "夜盤（美股 22:00 TST）"
     tech_lines = [f"【{session_label} 技術面數據】"]
     for s in etf_signals:
-        ticker = s.ticker.replace(".TW", "")
+        ticker   = s.ticker.replace(".TW", "")
         hist_dir = "▲擴大" if (s.macd_hist or 0) > 0 else "▼收縮"
         rsi_note = "超買" if s.rsi > 70 else "超賣" if s.rsi < 30 else "正常"
         bb_note  = "突破上軌" if s.bb_pct > 1 else "突破下軌" if s.bb_pct < 0 else "帶內"
@@ -92,11 +177,10 @@ def _format_data(macro: MacroIndicators, etf_signals: list, session: str, dcc_te
             f"  MaxDD={s.max_drawdown:+.1f}%"
         )
 
-    # ── 估值面數據 ──
     val_lines = ["【估值面數據】"]
     for s in etf_signals:
+        ticker = s.ticker.replace(".TW", "")
         if s.cape is not None or s.erp is not None:
-            ticker = s.ticker.replace(".TW", "")
             val_lines.append(
                 f"  {ticker}  CAPE={s.cape:.1f}x"
                 f"  ERP={s.erp:+.2f}%"
@@ -105,10 +189,8 @@ def _format_data(macro: MacroIndicators, etf_signals: list, session: str, dcc_te
                 else f"  {ticker}  估值數據暫無"
             )
         else:
-            ticker = s.ticker.replace(".TW", "")
             val_lines.append(f"  {ticker}  （債券，估值不適用）")
 
-    # ── 總經面數據 ──
     pmi_val = macro.ism_pmi[-1] if macro.ism_pmi else 50.0
     macro_lines = [
         "【總經面數據】",
@@ -121,7 +203,7 @@ def _format_data(macro: MacroIndicators, etf_signals: list, session: str, dcc_te
         f"  PMI動能={'加速' if macro.pmi_second_deriv>0 else '減速'}({macro.pmi_second_deriv:+.3f})",
     ]
 
-    # ── 市場情緒背景（新聞標題，僅輔助參考）──
+    # 市場情緒背景（新聞標題）
     news_lines = []
     all_headlines = []
     for s in etf_signals:
@@ -158,26 +240,9 @@ def _format_data(macro: MacroIndicators, etf_signals: list, session: str, dcc_te
     return "\n".join(all_parts)
 
 
-def _build_prompt(data_text: str, etf_signals: list) -> str:
-    """組裝多 Agent 輸出要求"""
-    ticker_list = "、".join(s.ticker.replace(".TW", "") for s in etf_signals)
-    return (
-        f"{data_text}\n\n"
-        f"---\n"
-        f"重要原則：MACD、Z-Score、HY利差、殖利率曲線等量化指標為主要評分依據；新聞標題為輔助情緒背景，若標題模糊或缺乏數值細節請降低其影響權重。\n\n"
-        f"請針對上述數據，依序以四個角色輸出（禁止使用任何 Markdown 符號如 # ** * - [ ]，全部純文字）：\n\n"
-        f"針對標的：{ticker_list}\n\n"
-        f"德魯肯米勒（技術）：[BUY/HOLD/SELL] 信心XX% — （15字內理由）\n"
-        f"巴菲特/葛拉漢（價值）：[BUY/HOLD/SELL] 信心XX% — （15字內理由）\n"
-        f"索羅斯（總經）：[BUY/HOLD/SELL] 信心XX% — （15字內理由）\n\n"
-        f"蒙格決策：[買入/持有/賣出]\n"
-        f"逆向思考三問：\n"
-        f"1. （15字內，什麼情況會讓這筆投資失敗？）\n"
-        f"2. （15字內，目前最大的不確定因子？）\n"
-        f"3. （15字內，若不買入，機會成本為何？）\n\n"
-        f"綜合說明：（150字以內，引用至少一位投資人的觀點，不用換行）"
-    )
-
+# ─────────────────────────────────────────────
+# 新聞繁中批量翻譯（獨立 API 呼叫）
+# ─────────────────────────────────────────────
 
 def translate_headlines_zh(news_by_ticker: dict, api_key: str) -> dict:
     """
@@ -192,14 +257,12 @@ def translate_headlines_zh(news_by_ticker: dict, api_key: str) -> dict:
     if not api_key:
         return news_by_ticker
 
-    # 收集所有待翻譯條目：(ticker, idx, field_type, text)
-    # field_type = "title" or "summary"
     all_items = []
     for ticker, items in news_by_ticker.items():
         for i, item in enumerate(items):
             if isinstance(item, dict):
                 title   = item.get("title", "")
-                summary = item.get("summary", "")[:130]   # 截取前 130 字
+                summary = item.get("summary", "")[:130]
             else:
                 title, summary = str(item), ""
             if title:
@@ -210,7 +273,6 @@ def translate_headlines_zh(news_by_ticker: dict, api_key: str) -> dict:
     if not all_items:
         return news_by_ticker
 
-    # 組裝編號列表：title 用純數字，summary 用 "Ns."
     lines = []
     for seq, (_, _, field, text) in enumerate(all_items):
         num = f"{seq+1}s." if field == "summary" else f"{seq+1}."
@@ -223,11 +285,11 @@ def translate_headlines_zh(news_by_ticker: dict, api_key: str) -> dict:
         + "\n".join(lines)
     )
 
-    zh_map: dict = {}   # key = (seq, field_type), value = 譯文
+    zh_map: dict = {}
     try:
         headers = {"Content-Type": "application/json"}
         payload = {
-            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "contents":         [{"role": "user", "parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": 0.2, "maxOutputTokens": 1024},
         }
         url_api = f"{GEMINI_URL}?key={api_key}"
@@ -236,7 +298,6 @@ def translate_headlines_zh(news_by_ticker: dict, api_key: str) -> dict:
             raw_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
             for line in raw_text.splitlines():
                 line = line.strip()
-                # 匹配 "1. 譯文" 或 "1s. 譯文"
                 m = re.match(r"^(\d+)(s?)[.．、]\s*(.+)$", line)
                 if m:
                     seq_num   = int(m.group(1))
@@ -246,17 +307,23 @@ def translate_headlines_zh(news_by_ticker: dict, api_key: str) -> dict:
     except Exception as e:
         print(f"  [Translate] 翻譯失敗：{e}")
 
-    # 回寫 title_zh / summary_zh
-    result = {t: [dict(item) if isinstance(item, dict) else {"title": str(item), "url": "", "publisher": "", "summary": ""}
-                  for item in items]
-              for t, items in news_by_ticker.items()}
+    result = {
+        t: [dict(item) if isinstance(item, dict)
+            else {"title": str(item), "url": "", "publisher": "", "summary": ""}
+            for item in items]
+        for t, items in news_by_ticker.items()
+    }
     for seq, (ticker, idx, field, original_text) in enumerate(all_items):
-        zh_val = zh_map.get((seq + 1, field), original_text if field == "title" else "")
+        zh_val     = zh_map.get((seq + 1, field), original_text if field == "title" else "")
         target_key = "title_zh" if field == "title" else "summary_zh"
         result[ticker][idx][target_key] = zh_val
 
     return result
 
+
+# ─────────────────────────────────────────────
+# 主入口：兩層 Gemini 分析 → 合併輸出
+# ─────────────────────────────────────────────
 
 def build_gemini_summary(
     macro: MacroIndicators,
@@ -264,7 +331,15 @@ def build_gemini_summary(
     session: str,
     api_key: str,
     dcc_text: str = "",
+    regime: dict | None = None,
+    signal_lights: dict | None = None,
+    tail_risks: list | None = None,
 ) -> dict | None:
+    """
+    兩層 Gemini 分析：
+      Layer 1 → 體制敘事（100字以內宏觀事實）
+      Layer 2 → ETF 逐行信號說明（每行 ≤15字）
+    """
     if not api_key:
         print("  [Gemini] 未設定 GEMINI_API_KEY，略過")
         return None
@@ -272,30 +347,51 @@ def build_gemini_summary(
         print("  [Gemini] 無 ETF 信號，略過")
         return None
 
-    print("  [Gemini] 產生 AI 多視角摘要...")
-    data_text    = _format_data(macro, etf_signals, session, dcc_text=dcc_text)
-    user_content = _build_prompt(data_text, etf_signals)
+    # 若未提供 regime/signal_lights，使用降級模式（單次呼叫）
+    if regime is None or signal_lights is None:
+        print("  [Gemini] 降級模式（未傳入 regime/signal_lights）...")
+        data_text = _format_data(macro, etf_signals, session, dcc_text=dcc_text)
+        ticker_list = "、".join(s.ticker for s in etf_signals)
+        prompt = (
+            f"{data_text}\n\n---\n"
+            f"重要：量化指標為主要依據，新聞標題僅為情緒背景輔助。\n\n"
+            f"針對 {ticker_list}，用150字內給出今日市場簡評（純文字，不用角色扮演）。"
+        )
+        text = _gemini_call(prompt, api_key, max_tokens=400)
+        if not text:
+            return None
+        return {"type": "text", "text": f"AI 市場解讀\n\n{text}"}
 
-    payload = {
-        "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
-        "contents": [{"role": "user", "parts": [{"text": user_content}]}],
-        "generationConfig": {
-            "temperature": 0.65,
-            "maxOutputTokens": 600,
-        },
-    }
-    headers = {"Content-Type": "application/json"}
-    url = f"{GEMINI_URL}?key={api_key}"
+    # ── Layer 1：體制敘事 ──
+    print("  [Gemini] Layer 1：體制敘事...")
+    regime_prompt = _build_regime_prompt(macro, regime, tail_risks or [], dcc_text)
+    layer1 = _gemini_call(regime_prompt, api_key, max_tokens=200)
 
-    resp = _call_with_retry(url, headers, payload)
-    if resp is None:
-        return None
+    # ── Layer 2：ETF 逐行 ──
+    print("  [Gemini] Layer 2：ETF 信號說明...")
+    etf_prompt = _build_etf_prompt(etf_signals, signal_lights)
+    layer2 = _gemini_call(etf_prompt, api_key, max_tokens=300)
 
-    try:
-        text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-        full_text = f"🌙 AI 傳奇投資人分析\n\n{text}"
-        print(f"  [Gemini] 摘要完成（{len(text)} 字）")
-        return {"type": "text", "text": full_text}
-    except (KeyError, IndexError) as e:
-        print(f"  [Gemini] 解析回應失敗：{e}")
-        return None
+    # ── 組合輸出 ──
+    regime_label = regime.get("regime", "")
+    credit_label = regime.get("credit", "")
+    pmi_label    = regime.get("pmi_trend", "")
+    curve_label  = regime.get("curve", "")
+    header_line  = f"體制：{regime_label} · 信用{credit_label} · {pmi_label} · 曲線{curve_label}"
+
+    parts = [f"AI 市場解讀\n", f"【{header_line}】"]
+
+    if tail_risks:
+        for r in tail_risks:
+            parts.append(f"⚠ {r['warning']}")
+
+    if layer1:
+        parts.append(f"\n{layer1}")
+
+    if layer2:
+        parts.append(f"\n【各標的信號】\n{layer2}")
+
+    full_text = "\n".join(parts)
+    total_chars = len(full_text)
+    print(f"  [Gemini] 完成（{total_chars} 字，Layer1={len(layer1 or '')} Layer2={len(layer2 or '')}）")
+    return {"type": "text", "text": full_text}

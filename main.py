@@ -1,8 +1,11 @@
 """
-LINE 投資夜盤主程式 v6 — 單一 22:00 TST 夜盤會話
-標的：VOO + QQQ + GLD + VGIT + GRID
-新增：DCC-GARCH(1,1) 兩階段量化分析（VOO/VGIT/GLD）
-      5 資產 HRP 配置 + report.json 輸出（供 Cloudflare Pages Web App）
+LINE 投資夜盤主程式 v7 — 新架構
+標的：VOO + QQQ + GLD + VGIT + TYD + GRID
+新增：市場體制偵測（RISK_ON/TRANSITION/RISK_OFF）
+      三色信號燈（純規則，非 LLM）
+      尾端風險清單（硬編碼）
+      信號 delta 追蹤（prev_light 比對）
+      兩層 Gemini 分析（體制敘事 + ETF 逐行）
 """
 
 import os
@@ -14,22 +17,30 @@ from dataclasses import asdict
 
 TST = timezone(timedelta(hours=8))
 
-from src.quant_engine import run_evening_session
+from src.quant_engine import (
+    run_evening_session,
+    detect_market_regime,
+    calc_signal_light,
+    eval_tail_risks,
+)
 from src.line_builder import (
     build_text_message, build_macro_card,
     build_etf_card,
     send_line_messages,
 )
-from src.gemini_summary import build_gemini_summary, translate_headlines_zh, _format_data as _fmt_data
+from src.gemini_summary import build_gemini_summary, translate_headlines_zh
 from src.data_fetcher import yahoo_news_headlines, setup_openbb_credentials
 from src.dcc_garch import run_dcc_analysis, format_dcc_for_prompt
 
+REPORT_PATH = pathlib.Path("docs/data/report.json")
+
+
+# ─────────────────────────────────────────────
+# 輔助函式
+# ─────────────────────────────────────────────
 
 def _fetch_news(etf_signals: list) -> dict:
-    """
-    為每個 ETF 信號抓取最新新聞標題（list[dict{"title","url"}]）。
-    Returns: {ticker: list[dict]} 供翻譯步驟使用
-    """
+    """為每個 ETF 抓取最新新聞（list[dict{"title","url","publisher","summary"}]）"""
     news_by_ticker: dict = {}
     for sig in etf_signals:
         if not sig.news_headlines:
@@ -39,10 +50,47 @@ def _fetch_news(etf_signals: list) -> dict:
     return news_by_ticker
 
 
+def _load_prev_signal_lights() -> dict:
+    """
+    讀取上次 report.json 的 signal_lights，供 delta 計算用。
+    Returns: {ticker: {"light": str}} 或空 dict
+    """
+    if not REPORT_PATH.exists():
+        return {}
+    try:
+        with open(REPORT_PATH, encoding="utf-8") as f:
+            prev = json.load(f)
+        return prev.get("signal_lights", {})
+    except Exception:
+        return {}
+
+
+def _calc_signal_lights(etf_signals: list, regime: dict, prev_lights: dict) -> dict:
+    """
+    計算所有 ETF 信號燈，並附加 delta（前次 vs 本次）。
+    Returns: {ticker: {"light", "reason", "prev_light", "changed"}}
+    """
+    result = {}
+    for sig in etf_signals:
+        sl        = calc_signal_light(sig, regime)
+        prev_sl   = prev_lights.get(sig.ticker, {})
+        prev_light = prev_sl.get("light", "")
+        result[sig.ticker] = {
+            "light":      sl["light"],
+            "reason":     sl["reason"],
+            "prev_light": prev_light,
+            "changed":    prev_light != "" and prev_light != sl["light"],
+        }
+    return result
+
+
 def _build_report_json(
-    macro, etf_signals, gemini_text, hrp_weights, dcc_result, tyd_timing, date_str, now
+    macro, etf_signals, gemini_text,
+    hrp_weights, dcc_result, tyd_timing,
+    regime, signal_lights, tail_risks,
+    date_str, now,
 ) -> dict:
-    """構建 report.json 資料結構"""
+    """構建完整 report.json 資料結構"""
     def _sig_to_dict(s) -> dict:
         d = asdict(s)
         return {
@@ -68,8 +116,8 @@ def _build_report_json(
             "news_headlines":      d["news_headlines"],
         }
 
-    report = {
-        "generated_at": now.strftime("%Y-%m-%dT%H:%M:%S+08:00"),
+    return {
+        "generated_at":  now.strftime("%Y-%m-%dT%H:%M:%S+08:00"),
         "macro": {
             "us10y":            macro.us10y,
             "us02y":            macro.us02y,
@@ -84,41 +132,43 @@ def _build_report_json(
             "ism_pmi":          macro.ism_pmi,
             "pmi_second_deriv": macro.pmi_second_deriv,
         },
+        "regime":          regime,           # 新：體制偵測結果
+        "signal_lights":   signal_lights,    # 新：{ticker: {light,reason,prev_light,changed}}
+        "tail_risks":      tail_risks,       # 新：[{id, warning}]
         "etf_signals":     [_sig_to_dict(s) for s in etf_signals],
         "gemini_analysis": gemini_text,
         "hrp_weights":     hrp_weights,
         "dcc":             dcc_result or {},
         "tyd_timing":      tyd_timing,
     }
-    return report
 
 
 def _write_report_json(report: dict) -> None:
-    out_dir = pathlib.Path("docs/data")
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / "report.json"
-    with open(out_path, "w", encoding="utf-8") as f:
+    REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(REPORT_PATH, "w", encoding="utf-8") as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
-    print(f"[JSON] report.json 已寫出 → {out_path}")
+    print(f"[JSON] report.json 已寫出 → {REPORT_PATH}")
 
+
+# ─────────────────────────────────────────────
+# 主程式
+# ─────────────────────────────────────────────
 
 def main():
-    token       = os.environ.get("LINE_CHANNEL_TOKEN", "")
-    user_id     = os.environ.get("LINE_USER_ID", "")
-    fred_key    = os.environ.get("FRED_API_KEY", "")
-    av_key      = os.environ.get("AV_API_KEY", "")
-    av_key_2    = os.environ.get("AV_API_KEY_2", "")
-    av_keys     = [k for k in [av_key, av_key_2] if k]
-    gemini_key  = os.environ.get("GEMINI_API_KEY", "")
-    session     = os.environ.get("SESSION", "evening").lower().strip()
+    token      = os.environ.get("LINE_CHANNEL_TOKEN", "")
+    user_id    = os.environ.get("LINE_USER_ID", "")
+    fred_key   = os.environ.get("FRED_API_KEY", "")
+    av_key     = os.environ.get("AV_API_KEY", "")
+    av_key_2   = os.environ.get("AV_API_KEY_2", "")
+    av_keys    = [k for k in [av_key, av_key_2] if k]
+    gemini_key = os.environ.get("GEMINI_API_KEY", "")
+    session    = os.environ.get("SESSION", "evening").lower().strip()
 
     if not token or not user_id:
         print("[ERROR] LINE_CHANNEL_TOKEN 或 LINE_USER_ID 未設定")
         sys.exit(1)
-
     if session != "evening":
         print(f"[WARN] SESSION={session} 不支援，強制使用 evening")
-
     if not av_keys:
         print("[ERROR] AV_API_KEY 未設定")
         sys.exit(1)
@@ -127,18 +177,39 @@ def main():
     date_str = now.strftime("%Y/%m/%d")
     print(f"SESSION=evening  date={date_str}")
 
-    # ── OpenBB 憑證初始化 ─────────────────────────────────────────────────
+    # ── OpenBB 憑證初始化 ──────────────────────────────────────────────
     setup_openbb_credentials(
         fred_key=fred_key,
         av_key=av_keys[0] if av_keys else "",
     )
 
-    # ── 量化分析 ──────────────────────────────────────
+    # ── 量化分析 ────────────────────────────────────────────────────────
     macro, etf_signals, vix, hrp_weights, tyd_timing = run_evening_session(fred_key, av_keys)
     tyd_score, tyd_label = tyd_timing
+
+    # ── 體制偵測 + 信號燈 + 尾端風險（純規則，不呼叫 LLM）──────────────
+    print("  [Regime] 市場體制偵測...")
+    regime = detect_market_regime(macro)
+    print(f"  [Regime] {regime['regime']} | 信用:{regime['credit']} | PMI:{regime['pmi_trend']} | 曲線:{regime['curve']}")
+
+    prev_lights   = _load_prev_signal_lights()
+    signal_lights = _calc_signal_lights(etf_signals, regime, prev_lights)
+    for t, sl in signal_lights.items():
+        delta = f"（{sl['prev_light']}→{sl['light']}）" if sl["changed"] else ""
+        print(f"  [Signal] {t}: {sl['light']} {delta} — {sl['reason']}")
+
+    tail_risks = eval_tail_risks(macro, etf_signals)
+    if tail_risks:
+        print(f"  [TailRisk] 已觸發 {len(tail_risks)} 條警示：")
+        for r in tail_risks:
+            print(f"    ⚠ {r['warning']}")
+    else:
+        print("  [TailRisk] 無觸發警示")
+
+    # ── 新聞抓取 ────────────────────────────────────────────────────────
     news_by_ticker = _fetch_news(etf_signals)
 
-    # ── DCC-GARCH 分析（VOO / VGIT / GLD）─────────────
+    # ── DCC-GARCH 分析（VOO / VGIT / GLD）─────────────────────────────
     dcc_result = None
     dcc_text   = ""
     try:
@@ -149,7 +220,7 @@ def main():
     except Exception as e:
         print(f"  [DCC] 分析失敗（{e}），略過")
 
-    # ── 繁中新聞翻譯（Gemini 批量，一次 API 呼叫）─────
+    # ── 繁中新聞翻譯（Gemini 批量，一次 API 呼叫）──────────────────────
     if gemini_key and news_by_ticker:
         print("  [Translate] 翻譯新聞標題...")
         try:
@@ -160,26 +231,32 @@ def main():
         except Exception as e:
             print(f"  [Translate] 翻譯失敗（{e}），略過")
 
-    # ── Gemini AI 摘要（含 DCC 數據）─────────────────
-    gemini_msg  = build_gemini_summary(macro, etf_signals, "evening", gemini_key,
-                                       dcc_text=dcc_text)
+    # ── Gemini 兩層分析（體制敘事 + ETF 逐行）──────────────────────────
+    gemini_msg = build_gemini_summary(
+        macro, etf_signals, "evening", gemini_key,
+        dcc_text=dcc_text,
+        regime=regime,
+        signal_lights=signal_lights,
+        tail_risks=tail_risks,
+    )
     gemini_text = gemini_msg["text"] if gemini_msg else ""
 
-    # ── 寫出 report.json ──────────────────────────────
+    # ── 寫出 report.json ───────────────────────────────────────────────
     report = _build_report_json(
-        macro, etf_signals, gemini_text, hrp_weights, dcc_result,
-        {"score": tyd_score, "label": tyd_label}, date_str, now
+        macro, etf_signals, gemini_text,
+        hrp_weights, dcc_result,
+        {"score": tyd_score, "label": tyd_label},
+        regime, signal_lights, tail_risks,
+        date_str, now,
     )
     _write_report_json(report)
 
-    # ── LINE 訊息組合（5 訊息上限）───────────────────
-    # Msg 1: 文字摘要（5 ETF + 宏觀）
-    # Msg 2: Gemini AI 傳奇投資人分析（含 DCC）
+    # ── LINE 訊息（5 則上限）─────────────────────────────────────────
+    # Msg 1: 文字摘要
+    # Msg 2: AI 市場解讀（新兩層架構）
     # Msg 3: 總經指標卡
     # Msg 4: VOO ETF 卡
     # Msg 5: QQQ ETF 卡
-    # GLD / VGIT / GRID → Web App only
-
     messages = []
     messages.append(build_text_message("evening", macro, etf_signals, date_str))
     if gemini_msg:

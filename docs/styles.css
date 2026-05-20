@@ -237,6 +237,86 @@ body {
 .c-blu  { color: var(--accent-blu); }
 .c-dim  { color: var(--text-dim); }
 
+/* ── Regime Banner ── */
+.regime-banner {
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  transition: background 0.3s;
+}
+.regime-banner.regime-on   { border-bottom-color: var(--accent-grn); }
+.regime-banner.regime-trans { border-bottom-color: var(--accent-yel); }
+.regime-banner.regime-off  { border-bottom-color: var(--accent-red); }
+
+.regime-inner {
+  max-width: 1440px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.regime-label {
+  font-size: 0.72rem;
+  color: var(--text-sec);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.regime-badge {
+  font-size: 0.88rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: var(--surface2);
+}
+.regime-badge.regime-on   { color: var(--accent-grn); border: 1px solid var(--accent-grn); }
+.regime-badge.regime-trans { color: var(--accent-yel); border: 1px solid var(--accent-yel); }
+.regime-badge.regime-off  { color: var(--accent-red); border: 1px solid var(--accent-red); }
+.regime-details { font-size: 0.80rem; color: var(--text-sec); }
+
+/* ── Tail Risk Bar ── */
+.tail-risk-bar {
+  background: rgba(226, 75, 74, 0.08);
+  border-bottom: 1px solid rgba(226, 75, 74, 0.35);
+  padding: 8px 20px;
+}
+.tail-risk-inner {
+  max-width: 1440px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tail-risk-item {
+  font-size: 0.82rem;
+  color: #f08080;
+}
+
+/* ── Signal Light Row ── */
+.signal-light-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  margin: 8px 0 4px;
+  font-size: 0.84rem;
+}
+.signal-light-row.sl-green  { background: rgba(29,158,117,0.12); }
+.signal-light-row.sl-yellow { background: rgba(239,159,39,0.12); }
+.signal-light-row.sl-red    { background: rgba(226,75,74,0.12); }
+
+.sl-light  { font-size: 1.0rem; font-weight: 700; white-space: nowrap; }
+.sl-reason { font-size: 0.78rem; color: var(--text-sec); flex: 1; }
+.sl-delta  {
+  font-size: 0.74rem;
+  color: var(--accent-yel);
+  background: rgba(239,159,39,0.15);
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
 /* ── Tablet: ≥ 640px ── */
 @media (min-width: 640px) {
   .etf-grid { grid-template-columns: 1fr 1fr; }
