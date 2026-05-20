@@ -170,7 +170,7 @@ def fetch_fred(series_id: str, api_key: str, limit: int = 24) -> list:
 
 def yahoo_news_headlines(symbol: str, limit: int = 5) -> list:
     """
-    OpenBB (yfinance) → equity.news → list[dict{"title","url"}]
+    OpenBB (yfinance) → equity.news → list[dict{"title","url","publisher","summary"}]
     Fallback: 直接呼叫 Yahoo Finance Search API
     """
     obb = _get_obb()
@@ -181,15 +181,22 @@ def yahoo_news_headlines(symbol: str, limit: int = 5) -> list:
                 result = obb.equity.news(symbol, limit=limit, provider="yfinance")
             df = result.to_dataframe()
             items = []
-            title_col = next((c for c in ("title", "headline", "summary", "text") if c in df.columns), None)
-            url_col   = next((c for c in ("url", "link", "article_url") if c in df.columns), None)
+            title_col     = next((c for c in ("title", "headline", "text") if c in df.columns), None)
+            url_col       = next((c for c in ("url", "link", "article_url") if c in df.columns), None)
+            publisher_col = next((c for c in ("source", "publisher", "provider_name", "author") if c in df.columns), None)
+            summary_col   = next((c for c in ("description", "summary", "body", "content") if c in df.columns), None)
             if title_col:
                 rows = df.head(limit)
                 for _, row in rows.iterrows():
                     t = str(row[title_col]) if pd.notna(row[title_col]) else ""
-                    u = str(row[url_col]) if url_col and pd.notna(row[url_col]) else ""
-                    if t:
-                        items.append({"title": t, "url": u})
+                    if not t:
+                        continue
+                    items.append({
+                        "title":     t,
+                        "url":       str(row[url_col])       if url_col       and pd.notna(row[url_col])       else "",
+                        "publisher": str(row[publisher_col]) if publisher_col and pd.notna(row[publisher_col]) else "",
+                        "summary":   str(row[summary_col])   if summary_col   and pd.notna(row[summary_col])   else "",
+                    })
             if items:
                 print(f"  [OBB/News] {symbol} {len(items)} 則")
                 return items
@@ -454,7 +461,7 @@ def _treasury_direct(av_key) -> tuple[float, float]:
 
 
 def _yahoo_news_direct(symbol: str, limit: int = 5) -> list:
-    """Yahoo Finance Search API 直接呼叫 → list[dict{"title","url"}]"""
+    """Yahoo Finance Search API 直接呼叫 → list[dict{"title","url","publisher","summary"}]"""
     url = "https://query1.finance.yahoo.com/v1/finance/search"
     params = {"q": symbol, "newsCount": limit, "enableFuzzyQuery": False, "quotesCount": 0}
     headers = {
@@ -472,8 +479,10 @@ def _yahoo_news_direct(symbol: str, limit: int = 5) -> list:
             if not title:
                 continue
             items.append({
-                "title": title,
-                "url":   n.get("link", ""),
+                "title":     title,
+                "url":       n.get("link", ""),
+                "publisher": n.get("publisher", ""),   # e.g. "Reuters", "Bloomberg"
+                "summary":   n.get("summary", ""),     # 通常為空，但保留以防未來 API 更新
             })
         if items:
             print(f"  [News direct] {symbol} {len(items)} 則")

@@ -121,7 +121,7 @@ def _format_data(macro: MacroIndicators, etf_signals: list, session: str, dcc_te
         f"  PMI動能={'加速' if macro.pmi_second_deriv>0 else '減速'}({macro.pmi_second_deriv:+.3f})",
     ]
 
-    # ── 新聞標題（如有；支援 list[str] 和 list[dict] 兩種格式）──
+    # ── 市場情緒背景（新聞標題，僅輔助參考）──
     news_lines = []
     all_headlines = []
     for s in etf_signals:
@@ -129,13 +129,26 @@ def _format_data(macro: MacroIndicators, etf_signals: list, session: str, dcc_te
             ticker_tag = s.ticker.replace(".TW", "")
             for h in s.news_headlines[:3]:
                 if isinstance(h, dict):
-                    title = h.get("title_zh") or h.get("title", "")
+                    zh_title  = h.get("title_zh") or h.get("title", "")
+                    publisher = h.get("publisher", "")
+                    summary   = h.get("summary_zh") or h.get("summary", "")
                 else:
-                    title = str(h)
-                if title:
-                    all_headlines.append(f"  [{ticker_tag}] {title}")
+                    zh_title, publisher, summary = str(h), "", ""
+                if not zh_title:
+                    continue
+                pub_tag = f"[{publisher}]" if publisher else ""
+                line = f"  [{ticker_tag}]{pub_tag} {zh_title}"
+                if summary:
+                    brief = summary[:60].rstrip() + ("…" if len(summary) > 60 else "")
+                    line += f"\n    → {brief}"
+                all_headlines.append(line)
     if all_headlines:
-        news_lines = ["【最新新聞標題（請納入總經分析師評分）】"] + all_headlines
+        news_lines = [
+            "【市場情緒背景（僅供輔助參考）】",
+            "  注意：以下為新聞標題，文字精簡可能缺乏完整脈絡，",
+            "        請以殖利率曲線、HY利差、PMI 等量化指標為主要依據，",
+            "        新聞僅用於感知市場情緒方向，勿直接影響信心分數。",
+        ] + all_headlines
 
     all_parts = tech_lines + [""] + val_lines + [""] + macro_lines
     if news_lines:
@@ -151,6 +164,7 @@ def _build_prompt(data_text: str, etf_signals: list) -> str:
     return (
         f"{data_text}\n\n"
         f"---\n"
+        f"重要原則：MACD、Z-Score、HY利差、殖利率曲線等量化指標為主要評分依據；新聞標題為輔助情緒背景，若標題模糊或缺乏數值細節請降低其影響權重。\n\n"
         f"請針對上述數據，依序以四個角色輸出（禁止使用任何 Markdown 符號如 # ** * - [ ]，全部純文字）：\n\n"
         f"針對標的：{ticker_list}\n\n"
         f"德魯肯米勒（技術）：[BUY/HOLD/SELL] 信心XX% — （15字內理由）\n"
@@ -167,38 +181,54 @@ def _build_prompt(data_text: str, etf_signals: list) -> str:
 
 def translate_headlines_zh(news_by_ticker: dict, api_key: str) -> dict:
     """
-    批量將英文新聞標題翻譯為繁體中文（一次 Gemini 呼叫）。
-    news_by_ticker: {ticker: list[dict{"title","url"}]}
-    Returns: 同結構，每個 dict 增加 "title_zh" 欄位
+    批量將英文新聞標題與摘要翻譯為繁體中文（一次 Gemini 呼叫）。
+    news_by_ticker: {ticker: list[dict{"title","url","publisher","summary"}]}
+    Returns: 同結構，每個 dict 增加 "title_zh"（和 "summary_zh" 若有摘要）欄位
+
+    批次格式：
+      1. 標題原文          → title_zh
+      1s. 摘要原文（截130字）→ summary_zh（後綴 "s" 區分）
     """
     if not api_key:
         return news_by_ticker
 
-    # 收集所有標題（含索引以便回寫）
-    all_items = []   # [(ticker, idx, title, url), ...]
+    # 收集所有待翻譯條目：(ticker, idx, field_type, text)
+    # field_type = "title" or "summary"
+    all_items = []
     for ticker, items in news_by_ticker.items():
         for i, item in enumerate(items):
-            title = item.get("title", "") if isinstance(item, dict) else str(item)
-            url   = item.get("url", "")   if isinstance(item, dict) else ""
+            if isinstance(item, dict):
+                title   = item.get("title", "")
+                summary = item.get("summary", "")[:130]   # 截取前 130 字
+            else:
+                title, summary = str(item), ""
             if title:
-                all_items.append((ticker, i, title, url))
+                all_items.append((ticker, i, "title", title))
+            if summary:
+                all_items.append((ticker, i, "summary", summary))
 
     if not all_items:
         return news_by_ticker
 
-    numbered = "\n".join(f"{i+1}. {t}" for i, (_, _, t, _) in enumerate(all_items))
+    # 組裝編號列表：title 用純數字，summary 用 "Ns."
+    lines = []
+    for seq, (_, _, field, text) in enumerate(all_items):
+        num = f"{seq+1}s." if field == "summary" else f"{seq+1}."
+        lines.append(f"{num} {text}")
+
     prompt = (
-        "以下是英文財經新聞標題，請逐行翻譯成繁體中文（每則15字以內，"
-        "僅輸出翻譯結果，保持原本編號格式，例如 '1. 譯文'）：\n\n"
-        + numbered
+        "以下是英文財經文字，請逐行翻譯成繁體中文。\n"
+        "標題（純數字編號）每則15字以內；摘要（帶s後綴）每則30字以內。\n"
+        "僅輸出翻譯結果，保持原本編號格式，例如 '1. 譯文' 或 '1s. 譯文'：\n\n"
+        + "\n".join(lines)
     )
 
-    zh_map: dict = {}
+    zh_map: dict = {}   # key = (seq, field_type), value = 譯文
     try:
         headers = {"Content-Type": "application/json"}
         payload = {
             "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 512},
+            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 1024},
         }
         url_api = f"{GEMINI_URL}?key={api_key}"
         resp = _call_with_retry(url_api, headers, payload)
@@ -206,18 +236,24 @@ def translate_headlines_zh(news_by_ticker: dict, api_key: str) -> dict:
             raw_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
             for line in raw_text.splitlines():
                 line = line.strip()
-                m = re.match(r"^(\d+)[.．、]\s*(.+)$", line)
+                # 匹配 "1. 譯文" 或 "1s. 譯文"
+                m = re.match(r"^(\d+)(s?)[.．、]\s*(.+)$", line)
                 if m:
-                    zh_map[int(m.group(1))] = m.group(2).strip()
+                    seq_num   = int(m.group(1))
+                    is_summ   = m.group(2) == "s"
+                    field_key = "summary" if is_summ else "title"
+                    zh_map[(seq_num, field_key)] = m.group(3).strip()
     except Exception as e:
         print(f"  [Translate] 翻譯失敗：{e}")
 
-    # 回寫 title_zh
-    result = {t: [dict(item) if isinstance(item, dict) else {"title": str(item), "url": ""}
+    # 回寫 title_zh / summary_zh
+    result = {t: [dict(item) if isinstance(item, dict) else {"title": str(item), "url": "", "publisher": "", "summary": ""}
                   for item in items]
               for t, items in news_by_ticker.items()}
-    for i, (ticker, idx, title, url) in enumerate(all_items):
-        result[ticker][idx]["title_zh"] = zh_map.get(i + 1, title)
+    for seq, (ticker, idx, field, original_text) in enumerate(all_items):
+        zh_val = zh_map.get((seq + 1, field), original_text if field == "title" else "")
+        target_key = "title_zh" if field == "title" else "summary_zh"
+        result[ticker][idx][target_key] = zh_val
 
     return result
 

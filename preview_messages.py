@@ -41,8 +41,22 @@ sig_voo = ETFSignal(
     technical_score=58.8, value_score=47.3, macro_score=61.1,
     combined_confidence=55.4, confidence_signal="買  入",
     news_headlines=[
-        {"title": "S&P 500 hits record high on tech rally", "url": "https://finance.yahoo.com/news/sp500-record", "title_zh": "標普500因科技反彈創歷史新高"},
-        {"title": "Fed signals rate cuts ahead", "url": "https://finance.yahoo.com/news/fed-cuts", "title_zh": "聯準會暗示即將降息"},
+        {
+            "title":      "S&P 500 hits record high on tech rally",
+            "url":        "https://finance.yahoo.com/news/sp500-record",
+            "publisher":  "Reuters",
+            "summary":    "The S&P 500 rose 0.8% to close at an all-time high, driven by megacap technology stocks, as investors grew optimistic about potential Fed rate cuts later this year.",
+            "title_zh":   "標普500因科技反彈創歷史新高",
+            "summary_zh": "標普500上漲0.8%收創歷史新高，受大型科技股帶動，投資人對聯準會今年稍晚降息樂觀預期升溫。",
+        },
+        {
+            "title":      "Fed signals rate cuts ahead",
+            "url":        "https://finance.yahoo.com/news/fed-cuts",
+            "publisher":  "Bloomberg",
+            "summary":    "Federal Reserve officials signaled openness to cutting interest rates as inflation continues to slow toward the 2% target, with markets pricing in two cuts by year end.",
+            "title_zh":   "聯準會暗示即將降息",
+            "summary_zh": "聯準會官員暗示，隨著通膨持續朝2%目標回落，有意降息，市場已定價年底前降息兩次。",
+        },
     ],
 )
 
@@ -63,8 +77,22 @@ sig_qqq = ETFSignal(
     technical_score=60.1, value_score=38.2, macro_score=61.1,
     combined_confidence=53.8, confidence_signal="買  入",
     news_headlines=[
-        {"title": "Nasdaq tech rally continues", "url": "https://finance.yahoo.com/news/nasdaq-rally", "title_zh": "那斯達克科技反彈持續"},
-        {"title": "AI stocks lead market gains", "url": "https://finance.yahoo.com/news/ai-stocks", "title_zh": "AI股票領漲市場"},
+        {
+            "title":      "Nasdaq tech rally continues",
+            "url":        "https://finance.yahoo.com/news/nasdaq-rally",
+            "publisher":  "CNBC",
+            "summary":    "The Nasdaq Composite extended gains for a third consecutive session, led by semiconductor and AI-related names, with the index up 1.2% and approaching its all-time high.",
+            "title_zh":   "那斯達克科技反彈持續",
+            "summary_zh": "那斯達克綜合指數連續第三個交易日上漲，由半導體和AI相關個股領漲，指數上漲1.2%，逼近歷史高點。",
+        },
+        {
+            "title":      "AI stocks lead market gains",
+            "url":        "https://finance.yahoo.com/news/ai-stocks",
+            "publisher":  "MarketWatch",
+            "summary":    "Artificial intelligence-related stocks outperformed the broader market, with major chipmakers and cloud providers posting gains of 2-4% on strong earnings guidance and expanding AI adoption.",
+            "title_zh":   "AI股票領漲市場",
+            "summary_zh": "人工智慧相關股票表現超越大盤，主要晶片製造商和雲端業者受強勁獲利指引及AI應用擴展帶動，上漲2-4%。",
+        },
     ],
 )
 
@@ -85,8 +113,22 @@ sig_gld = ETFSignal(
     technical_score=52.4, value_score=None, macro_score=61.1,
     combined_confidence=55.8, confidence_signal="買  入",
     news_headlines=[
-        {"title": "Gold surges amid geopolitical uncertainty", "url": "https://finance.yahoo.com/news/gold-surge", "title_zh": "黃金因地緣政治不確定性飆升"},
-        {"title": "Central banks increase gold reserves", "url": "https://finance.yahoo.com/news/cb-gold", "title_zh": "各國央行增加黃金儲備"},
+        {
+            "title":      "Gold surges amid geopolitical uncertainty",
+            "url":        "https://finance.yahoo.com/news/gold-surge",
+            "publisher":  "Reuters",
+            "summary":    "Gold prices climbed 0.9% to $2,350/oz as escalating Middle East tensions and persistent inflation concerns drove safe-haven demand, with technical momentum also supporting the move.",
+            "title_zh":   "黃金因地緣政治不確定性飆升",
+            "summary_zh": "金價上漲0.9%至每盎司2,350美元，中東局勢升溫及持續通膨疑慮推動避險需求，技術面動能亦提供支撐。",
+        },
+        {
+            "title":      "Central banks increase gold reserves",
+            "url":        "https://finance.yahoo.com/news/cb-gold",
+            "publisher":  "Financial Times",
+            "summary":    "Global central banks purchased a net 290 tonnes of gold in Q1 2026, marking the highest quarterly total since 2023, as reserve diversification away from the US dollar continued.",
+            "title_zh":   "各國央行增加黃金儲備",
+            "summary_zh": "全球央行2026年第一季淨購入黃金290公噸，為2023年以來最高季度購金量，去美元化的儲備多元化趨勢持續。",
+        },
     ],
 )
 
@@ -126,7 +168,14 @@ sig_grid = ETFSignal(
     technical_score=55.3, value_score=None, macro_score=58.4,
     combined_confidence=56.5, confidence_signal="買  入",
     news_headlines=[
-        {"title": "Smart grid investment surges on energy transition", "url": "https://finance.yahoo.com/news/grid-surge", "title_zh": "能源轉型推動智慧電網投資激增"},
+        {
+            "title":      "Smart grid investment surges on energy transition",
+            "url":        "https://finance.yahoo.com/news/grid-surge",
+            "publisher":  "Seeking Alpha",
+            "summary":    "Federal infrastructure spending and surging electricity demand from AI data centers are driving a wave of smart grid upgrades, with utilities announcing $45B in planned grid modernization for 2026-2028.",
+            "title_zh":   "能源轉型推動智慧電網投資激增",
+            "summary_zh": "聯邦基礎建設支出及AI數據中心帶動電力需求激增，正推動大規模智慧電網升級，各公用事業宣布2026至2028年共計450億美元的電網現代化計畫。",
+        },
     ],
 )
 
@@ -147,7 +196,14 @@ sig_tyd = ETFSignal(
     technical_score=53.8, value_score=None, macro_score=61.1,
     combined_confidence=56.8, confidence_signal="買  入",
     news_headlines=[
-        {"title": "Treasury yields rise as Fed holds rates", "url": "https://finance.yahoo.com/news/treasury-yields", "title_zh": "聯準會維持利率下美債殖利率上升"},
+        {
+            "title":      "Treasury yields rise as Fed holds rates",
+            "url":        "https://finance.yahoo.com/news/treasury-yields",
+            "publisher":  "Wall Street Journal",
+            "summary":    "The 10-year Treasury yield rose 6bps to 4.45% after the Fed held its benchmark rate steady, with Chair Powell citing still-elevated services inflation as a reason to remain patient before easing.",
+            "title_zh":   "聯準會維持利率下美債殖利率上升",
+            "summary_zh": "聯準會維持基準利率不變後，10年期美債殖利率上升6個基點至4.45%，鮑威爾主席指出服務業通膨仍偏高，寬鬆前需保持耐心。",
+        },
     ],
 )
 
