@@ -5,6 +5,7 @@ Gemini AI 市場摘要模組 v3 — ai-hedge-fund 角色架構
 錯誤處理：429/503 指數退避重試，最多 4 次
 """
 
+import re
 import time
 import requests
 from src.quant_engine import MacroIndicators, ETFSignal
@@ -120,13 +121,19 @@ def _format_data(macro: MacroIndicators, etf_signals: list, session: str, dcc_te
         f"  PMI動能={'加速' if macro.pmi_second_deriv>0 else '減速'}({macro.pmi_second_deriv:+.3f})",
     ]
 
-    # ── 新聞標題（如有）──
+    # ── 新聞標題（如有；支援 list[str] 和 list[dict] 兩種格式）──
     news_lines = []
     all_headlines = []
     for s in etf_signals:
         if s.news_headlines:
-            all_headlines.extend([f"  [{s.ticker.replace('.TW','')}] {h}"
-                                   for h in s.news_headlines[:3]])
+            ticker_tag = s.ticker.replace(".TW", "")
+            for h in s.news_headlines[:3]:
+                if isinstance(h, dict):
+                    title = h.get("title_zh") or h.get("title", "")
+                else:
+                    title = str(h)
+                if title:
+                    all_headlines.append(f"  [{ticker_tag}] {title}")
     if all_headlines:
         news_lines = ["【最新新聞標題（請納入總經分析師評分）】"] + all_headlines
 
@@ -156,6 +163,63 @@ def _build_prompt(data_text: str, etf_signals: list) -> str:
         f"3. （15字內，若不買入，機會成本為何？）\n\n"
         f"綜合說明：（150字以內，引用至少一位投資人的觀點，不用換行）"
     )
+
+
+def translate_headlines_zh(news_by_ticker: dict, api_key: str) -> dict:
+    """
+    批量將英文新聞標題翻譯為繁體中文（一次 Gemini 呼叫）。
+    news_by_ticker: {ticker: list[dict{"title","url"}]}
+    Returns: 同結構，每個 dict 增加 "title_zh" 欄位
+    """
+    if not api_key:
+        return news_by_ticker
+
+    # 收集所有標題（含索引以便回寫）
+    all_items = []   # [(ticker, idx, title, url), ...]
+    for ticker, items in news_by_ticker.items():
+        for i, item in enumerate(items):
+            title = item.get("title", "") if isinstance(item, dict) else str(item)
+            url   = item.get("url", "")   if isinstance(item, dict) else ""
+            if title:
+                all_items.append((ticker, i, title, url))
+
+    if not all_items:
+        return news_by_ticker
+
+    numbered = "\n".join(f"{i+1}. {t}" for i, (_, _, t, _) in enumerate(all_items))
+    prompt = (
+        "以下是英文財經新聞標題，請逐行翻譯成繁體中文（每則15字以內，"
+        "僅輸出翻譯結果，保持原本編號格式，例如 '1. 譯文'）：\n\n"
+        + numbered
+    )
+
+    zh_map: dict = {}
+    try:
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 512},
+        }
+        url_api = f"{GEMINI_URL}?key={api_key}"
+        resp = _call_with_retry(url_api, headers, payload)
+        if resp:
+            raw_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+            for line in raw_text.splitlines():
+                line = line.strip()
+                m = re.match(r"^(\d+)[.．、]\s*(.+)$", line)
+                if m:
+                    zh_map[int(m.group(1))] = m.group(2).strip()
+    except Exception as e:
+        print(f"  [Translate] 翻譯失敗：{e}")
+
+    # 回寫 title_zh
+    result = {t: [dict(item) if isinstance(item, dict) else {"title": str(item), "url": ""}
+                  for item in items]
+              for t, items in news_by_ticker.items()}
+    for i, (ticker, idx, title, url) in enumerate(all_items):
+        result[ticker][idx]["title_zh"] = zh_map.get(i + 1, title)
+
+    return result
 
 
 def build_gemini_summary(

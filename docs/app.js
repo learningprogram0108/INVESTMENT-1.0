@@ -8,6 +8,7 @@
     QQQ:  '#378ADD',
     GLD:  '#EF9F27',
     VGIT: '#9B59B6',
+    TYD:  '#E8A0BF',
     GRID: '#E24B4A',
   };
 
@@ -257,6 +258,20 @@
     });
   }
 
+  // ── TYD Timing ──
+  function renderTYD(data) {
+    const el_tyd = el('tyd-indicator');
+    if (!el_tyd) return;
+    const t = data.tyd_timing;
+    if (!t) { el_tyd.style.display = 'none'; return; }
+    const score = t.score != null ? t.score : (t.tyd_score != null ? t.tyd_score : 0);
+    const label = t.label || '';
+    const color = score >= 70 ? '#1D9E75' : score >= 50 ? '#EF9F27' : '#888888';
+    el_tyd.innerHTML =
+      `<span class="tyd-label" style="color:${color}">TYD 時機：${label}</span>` +
+      `<span class="tyd-score" style="color:${color}">${score}/100</span>`;
+  }
+
   // ── News ──
   function renderNews(signals) {
     const container = el('news-container');
@@ -268,7 +283,20 @@
       const color = ETF_COLORS[sig.ticker] || '#888';
       html += `<div class="news-group">
         <div class="news-group-title" style="color:${color}">${sig.ticker} — ${sig.name}</div>
-        <ul>${sig.news_headlines.map(h => `<li>${h}</li>`).join('')}</ul>
+        <ul>${sig.news_headlines.map(h => {
+          let display, url;
+          if (typeof h === 'object' && h !== null) {
+            display = h.title_zh || h.title || '';
+            url     = h.url || '';
+          } else {
+            display = String(h);
+            url     = '';
+          }
+          const tag = url
+            ? `<a href="${url}" target="_blank" rel="noopener noreferrer">${display}</a>`
+            : `<span>${display}</span>`;
+          return `<li>${tag}</li>`;
+        }).join('')}</ul>
       </div>`;
     });
     container.innerHTML = hasNews ? html : '<p class="loading-msg">暫無新聞標題</p>';
@@ -285,6 +313,7 @@
       renderMacroStrip(data.macro);
       renderAI(data);
       renderHRP(data.hrp_weights);
+      renderTYD(data);
       renderDCC(data.dcc);
       renderETFCards(data.etf_signals);
       renderNews(data.etf_signals);

@@ -29,6 +29,7 @@ KELLY_PARAMS = {
     "QQQ":  {"p": 0.67, "b": 2.0},
     "VGIT": {"p": 0.62, "b": 1.2},
     "GRID": {"p": 0.55, "b": 1.6},
+    "TYD":  {"p": 0.53, "b": 2.2},
 }
 
 # ─────────────────────────────────────────────
@@ -249,38 +250,141 @@ def calc_max_drawdown(prices: pd.Series) -> float:
     return round(float(dd.min()) * 100, 1)
 
 
+def calc_tyd_timing(us10y: float, yield_curve: float, vgit_rsi: float) -> tuple:
+    """
+    TYD 買入時機評分（0-100）
+    us10y:       美債10年期殖利率（%）
+    yield_curve: 10Y-2Y 殖利率曲線（%）
+    vgit_rsi:    VGIT RSI(14)
+    Returns: (score: int, label: str)
+    """
+    score = 0
+    # US10Y 水位（0-40 分）
+    if us10y >= 4.8:    score += 40
+    elif us10y >= 4.5:  score += 30
+    elif us10y >= 4.2:  score += 15
+    elif us10y >= 4.0:  score += 5
+    # 殖利率曲線（0-35 分）
+    if yield_curve < -0.3:   score += 35
+    elif yield_curve < 0:    score += 25
+    elif yield_curve < 0.3:  score += 10
+    # VGIT RSI 超賣（0-25 分）
+    if vgit_rsi < 35:    score += 25
+    elif vgit_rsi < 45:  score += 15
+    elif vgit_rsi < 55:  score += 5
+    # 標籤
+    if score >= 70:   label = "強烈買入 TYD"
+    elif score >= 50: label = "可考慮 TYD"
+    elif score >= 30: label = "觀望"
+    else:             label = "持有 VGIT"
+    return score, label
+
+
 # ─────────────────────────────────────────────
-# HRP：5 資產全組合（VOO / QQQ / GLD / VGIT / GRID）
-# 使用 scipy Ward 聚類
+# HRP：三群組分層配置
+# EQUITY=[VOO,QQQ] / FIXED_INCOME=[VGIT,TYD] / ALTERNATIVES=[GLD,GRID]
 # ─────────────────────────────────────────────
 
-def calc_hrp_weights(prices_dict: dict) -> dict:
+GROUPS = {
+    "EQUITY":       ["VOO", "QQQ"],
+    "FIXED_INCOME": ["VGIT", "TYD"],
+    "ALTERNATIVES": ["GLD", "GRID"],
+}
+
+
+def calc_hrp_weights(prices_dict: dict, tyd_score: int = 0) -> dict:
     """
-    Hierarchical Risk Parity (5 ETFs)
+    三群組 HRP：
+    1. 各群組內 equal-weight 計算群組報酬序列
+    2. 對三群組做 inter-group HRP → W_eq, W_fi, W_alt
+    3. 群組內配置：
+       - EQUITY / ALTERNATIVES: 兩資產 HRP
+       - FIXED_INCOME: VGIT:TYD 動態分配（依 tyd_score）
     prices_dict: {ticker: pd.Series of close prices}
+    tyd_score:   calc_tyd_timing() 回傳的分數
     Returns: {ticker: float} 合計 ~1.0
     """
-    tickers = list(prices_dict.keys())
-    n = len(tickers)
-    returns = pd.DataFrame({t: prices_dict[t].pct_change().dropna()
-                             for t in tickers}).dropna()
-    if len(returns) < 20:
-        return {t: round(1.0/n, 4) for t in tickers}
+    available = set(prices_dict.keys())
 
-    cov  = returns.cov().values
-    corr = returns.corr().values
-    dist_matrix = np.sqrt(np.clip(0.5 * (1.0 - corr), 0, 1))
-    np.fill_diagonal(dist_matrix, 0.0)
-    condensed = squareform(dist_matrix, checks=False)
+    group_returns = {}
+    valid_groups  = {}
+    for g_name, members in GROUPS.items():
+        avail = [m for m in members if m in available]
+        if not avail:
+            continue
+        rets = pd.DataFrame(
+            {t: prices_dict[t].pct_change().dropna() for t in avail}
+        ).dropna()
+        if len(rets) < 20:
+            continue
+        group_returns[g_name] = rets.mean(axis=1)   # equal-weight 群組報酬
+        valid_groups[g_name]  = avail
+
+    if len(group_returns) < 2:
+        n = len(available)
+        return {t: round(1.0/n, 4) for t in available}
+
+    # ── Inter-group HRP ──
+    grp_df = pd.DataFrame(group_returns).dropna()
+    try:
+        inter_weights = _hrp_on_returns(grp_df)
+    except Exception:
+        k = len(group_returns)
+        inter_weights = {g: 1.0/k for g in group_returns}
+
+    # ── Intra-group allocation ──
+    result: dict = {}
+    for g_name, members in valid_groups.items():
+        grp_w = inter_weights.get(g_name, 0.0)
+        if len(members) == 1:
+            result[members[0]] = grp_w
+        elif g_name == "FIXED_INCOME":
+            # TYD 動態分配（依買入時機評分）
+            if tyd_score >= 70:   tyd_ratio = 0.70
+            elif tyd_score >= 50: tyd_ratio = 0.40
+            elif tyd_score >= 30: tyd_ratio = 0.20
+            else:                  tyd_ratio = 0.05
+            vgit_ratio = 1.0 - tyd_ratio
+            for t in members:
+                ratio = tyd_ratio if t == "TYD" else vgit_ratio
+                result[t] = grp_w * ratio
+        else:
+            # 兩資產 HRP
+            avail_m = [t for t in members if t in available]
+            rets = pd.DataFrame(
+                {t: prices_dict[t].pct_change().dropna() for t in avail_m}
+            ).dropna()
+            if len(rets) < 20 or len(avail_m) < 2:
+                for t in avail_m:
+                    result[t] = grp_w / max(len(avail_m), 1)
+            else:
+                intra = _hrp_on_returns(rets)
+                for t in avail_m:
+                    result[t] = grp_w * intra.get(t, 1.0/len(avail_m))
+
+    total = sum(result.values()) + 1e-12
+    return {t: round(w / total, 4) for t, w in result.items()}
+
+
+def _hrp_on_returns(returns_df: pd.DataFrame) -> dict:
+    """對 DataFrame（columns=tickers）執行 HRP，返回 {ticker: weight}"""
+    tickers = list(returns_df.columns)
+    n = len(tickers)
+    if n == 1:
+        return {tickers[0]: 1.0}
+    cov  = returns_df.cov().values
+    corr = returns_df.corr().values
+    dist = np.sqrt(np.clip(0.5 * (1.0 - corr), 0, 1))
+    np.fill_diagonal(dist, 0.0)
+    condensed = squareform(dist, checks=False)
     link = linkage(condensed, method="ward")
     sorted_idx = leaves_list(link)
     sorted_tickers = [tickers[i] for i in sorted_idx]
     cov_sorted = cov[np.ix_(sorted_idx, sorted_idx)]
-
     weights = _hrp_recursive_bisect(cov_sorted, list(range(n)))
-    result = {sorted_tickers[i]: round(float(weights[i]), 4) for i in range(n)}
-    total = sum(result.values())
-    return {t: round(w / total, 4) for t, w in result.items()}
+    res = {sorted_tickers[i]: float(weights[i]) for i in range(n)}
+    total = sum(res.values()) + 1e-12
+    return {t: w / total for t, w in res.items()}
 
 
 def _hrp_recursive_bisect(cov: np.ndarray, items: list) -> np.ndarray:
@@ -560,18 +664,18 @@ ETF_UNIVERSE = [
     ("QQQ",  "Invesco QQQ Trust"),
     ("GLD",  "SPDR Gold Shares"),
     ("VGIT", "Vanguard Intermediate-Term Treasury"),
+    ("TYD",  "Direxion Daily 7-10 Year Treasury Bull 3x"),
     ("GRID", "First Trust NASDAQ Clean Edge Smart Grid"),
 ]
 
 
 def run_evening_session(fred_key: str, av_key) -> tuple:
     """
-    夜盤模式：22:00 TST（單一會話，覆蓋全部 5 檔 ETF）
-    Returns: (MacroIndicators, list[ETFSignal], float vix, dict hrp_weights)
-    注意：回傳值從 3-tuple 改為 4-tuple
+    夜盤模式：22:00 TST（單一會話，覆蓋全部 6 檔 ETF）
+    Returns: (MacroIndicators, list[ETFSignal], float vix, dict hrp_weights, tuple tyd_timing)
     """
     print("=" * 50)
-    print("夜盤模式：22:00 TST（VOO / QQQ / GLD / VGIT / GRID）")
+    print("夜盤模式：22:00 TST（VOO / QQQ / GLD / VGIT / TYD / GRID）")
     print("=" * 50)
 
     macro, vix, vix_upper, vix_break = fetch_macro(fred_key, av_key)
@@ -603,15 +707,22 @@ def run_evening_session(fred_key: str, av_key) -> tuple:
         etf_signals.append(sig)
         print(f"  {ticker}: Z={sig.z_score} | 信心={sig.combined_confidence:.0f}% {sig.confidence_signal} | 乘數={sig.fund_multiplier}x")
 
-    # 5 資產 HRP 配置
+    # TYD 買入時機評分（需 VGIT RSI）
+    vgit_sig  = next((s for s in etf_signals if s.ticker == "VGIT"), None)
+    vgit_rsi  = vgit_sig.rsi if vgit_sig else 50.0
+    tyd_score, tyd_label = calc_tyd_timing(macro.us10y, macro.yield_curve, vgit_rsi)
+    tyd_timing = (tyd_score, tyd_label)
+    print(f"  [TYD] 時機評分={tyd_score} → {tyd_label}")
+
+    # 三群組 HRP 配置
     hrp_weights = {}
     if len(prices_dict) >= 2:
         try:
-            hrp_weights = calc_hrp_weights(prices_dict)
+            hrp_weights = calc_hrp_weights(prices_dict, tyd_score=tyd_score)
             print(f"  [HRP] {hrp_weights}")
         except Exception as e:
             print(f"  [HRP] 計算失敗：{e}")
             n = len(prices_dict)
             hrp_weights = {t: round(1.0/n, 4) for t in prices_dict}
 
-    return macro, etf_signals, vix, hrp_weights
+    return macro, etf_signals, vix, hrp_weights, tyd_timing

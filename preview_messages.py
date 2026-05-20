@@ -40,7 +40,10 @@ sig_voo = ETFSignal(
     # 多 Agent 信心
     technical_score=58.8, value_score=47.3, macro_score=61.1,
     combined_confidence=55.4, confidence_signal="買  入",
-    news_headlines=["S&P 500 hits record high on tech rally", "Fed signals rate cuts ahead"],
+    news_headlines=[
+        {"title": "S&P 500 hits record high on tech rally", "url": "https://finance.yahoo.com/news/sp500-record", "title_zh": "標普500因科技反彈創歷史新高"},
+        {"title": "Fed signals rate cuts ahead", "url": "https://finance.yahoo.com/news/fed-cuts", "title_zh": "聯準會暗示即將降息"},
+    ],
 )
 
 sig_qqq = ETFSignal(
@@ -59,7 +62,10 @@ sig_qqq = ETFSignal(
     # 多 Agent 信心
     technical_score=60.1, value_score=38.2, macro_score=61.1,
     combined_confidence=53.8, confidence_signal="買  入",
-    news_headlines=["Nasdaq tech rally continues", "AI stocks lead market gains"],
+    news_headlines=[
+        {"title": "Nasdaq tech rally continues", "url": "https://finance.yahoo.com/news/nasdaq-rally", "title_zh": "那斯達克科技反彈持續"},
+        {"title": "AI stocks lead market gains", "url": "https://finance.yahoo.com/news/ai-stocks", "title_zh": "AI股票領漲市場"},
+    ],
 )
 
 sig_gld = ETFSignal(
@@ -78,7 +84,10 @@ sig_gld = ETFSignal(
     # 多 Agent 信心（無估值）
     technical_score=52.4, value_score=None, macro_score=61.1,
     combined_confidence=55.8, confidence_signal="買  入",
-    news_headlines=["Gold surges amid geopolitical uncertainty", "Central banks increase gold reserves"],
+    news_headlines=[
+        {"title": "Gold surges amid geopolitical uncertainty", "url": "https://finance.yahoo.com/news/gold-surge", "title_zh": "黃金因地緣政治不確定性飆升"},
+        {"title": "Central banks increase gold reserves", "url": "https://finance.yahoo.com/news/cb-gold", "title_zh": "各國央行增加黃金儲備"},
+    ],
 )
 
 sig_vgit = ETFSignal(
@@ -116,11 +125,34 @@ sig_grid = ETFSignal(
     # 多 Agent 信心（無估值）
     technical_score=55.3, value_score=None, macro_score=58.4,
     combined_confidence=56.5, confidence_signal="買  入",
-    news_headlines=["Smart grid investment surges on energy transition"],
+    news_headlines=[
+        {"title": "Smart grid investment surges on energy transition", "url": "https://finance.yahoo.com/news/grid-surge", "title_zh": "能源轉型推動智慧電網投資激增"},
+    ],
+)
+
+sig_tyd = ETFSignal(
+    ticker="TYD", name="Direxion Daily 7-10 Year Treasury Bull 3x",
+    price=21.34, change_pct=0.38,
+    ema_200=20.15, z_score=0.58,
+    sentiment_score=52.0, sentiment_label="中性",
+    vix=18.4, vix_bollinger_break=False,
+    cape=None, erp=None, predicted_10y_return=None,
+    kelly_f=0.1543,
+    cycle_phase="🟢 成長期（常態擴張）",
+    fund_multiplier=1.0, multiplier_mode="鑑賞家巡航",
+    macd_line=0.0312, macd_signal=0.0198, macd_hist=0.0114,
+    # 技術指標
+    rsi=52.1, bb_pct=0.61, sharpe_1y=0.38, max_drawdown=-12.4,
+    # 多 Agent 信心（無估值）
+    technical_score=53.8, value_score=None, macro_score=61.1,
+    combined_confidence=56.8, confidence_signal="買  入",
+    news_headlines=[
+        {"title": "Treasury yields rise as Fed holds rates", "url": "https://finance.yahoo.com/news/treasury-yields", "title_zh": "聯準會維持利率下美債殖利率上升"},
+    ],
 )
 
 # ── 夜盤訊息 ─────────────────────────────────────────────
-evening_signals = [sig_voo, sig_qqq, sig_gld, sig_vgit, sig_grid]
+evening_signals = [sig_voo, sig_qqq, sig_gld, sig_vgit, sig_tyd, sig_grid]
 evening_messages = [
     build_text_message("evening", macro, evening_signals, DATE),
     build_macro_card(macro, DATE),

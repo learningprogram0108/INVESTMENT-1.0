@@ -20,20 +20,27 @@ from src.line_builder import (
     build_etf_card,
     send_line_messages,
 )
-from src.gemini_summary import build_gemini_summary, _format_data as _fmt_data
+from src.gemini_summary import build_gemini_summary, translate_headlines_zh, _format_data as _fmt_data
 from src.data_fetcher import yahoo_news_headlines, setup_openbb_credentials
 from src.dcc_garch import run_dcc_analysis, format_dcc_for_prompt
 
 
-def _fetch_news(etf_signals: list) -> None:
-    """為每個 ETF 信號抓取最新新聞標題（供 Gemini 分析用）"""
+def _fetch_news(etf_signals: list) -> dict:
+    """
+    為每個 ETF 信號抓取最新新聞標題（list[dict{"title","url"}]）。
+    Returns: {ticker: list[dict]} 供翻譯步驟使用
+    """
+    news_by_ticker: dict = {}
     for sig in etf_signals:
         if not sig.news_headlines:
-            sig.news_headlines = yahoo_news_headlines(sig.ticker, limit=3)
+            headlines = yahoo_news_headlines(sig.ticker, limit=3)
+            sig.news_headlines = headlines
+        news_by_ticker[sig.ticker] = sig.news_headlines
+    return news_by_ticker
 
 
 def _build_report_json(
-    macro, etf_signals, gemini_text, hrp_weights, dcc_result, date_str, now
+    macro, etf_signals, gemini_text, hrp_weights, dcc_result, tyd_timing, date_str, now
 ) -> dict:
     """構建 report.json 資料結構"""
     def _sig_to_dict(s) -> dict:
@@ -80,7 +87,8 @@ def _build_report_json(
         "etf_signals":     [_sig_to_dict(s) for s in etf_signals],
         "gemini_analysis": gemini_text,
         "hrp_weights":     hrp_weights,
-        "dcc": dcc_result or {},
+        "dcc":             dcc_result or {},
+        "tyd_timing":      tyd_timing,
     }
     return report
 
@@ -126,8 +134,9 @@ def main():
     )
 
     # ── 量化分析 ──────────────────────────────────────
-    macro, etf_signals, vix, hrp_weights = run_evening_session(fred_key, av_keys)
-    _fetch_news(etf_signals)
+    macro, etf_signals, vix, hrp_weights, tyd_timing = run_evening_session(fred_key, av_keys)
+    tyd_score, tyd_label = tyd_timing
+    news_by_ticker = _fetch_news(etf_signals)
 
     # ── DCC-GARCH 分析（VOO / VGIT / GLD）─────────────
     dcc_result = None
@@ -140,6 +149,17 @@ def main():
     except Exception as e:
         print(f"  [DCC] 分析失敗（{e}），略過")
 
+    # ── 繁中新聞翻譯（Gemini 批量，一次 API 呼叫）─────
+    if gemini_key and news_by_ticker:
+        print("  [Translate] 翻譯新聞標題...")
+        try:
+            translated = translate_headlines_zh(news_by_ticker, gemini_key)
+            for sig in etf_signals:
+                if sig.ticker in translated:
+                    sig.news_headlines = translated[sig.ticker]
+        except Exception as e:
+            print(f"  [Translate] 翻譯失敗（{e}），略過")
+
     # ── Gemini AI 摘要（含 DCC 數據）─────────────────
     gemini_msg  = build_gemini_summary(macro, etf_signals, "evening", gemini_key,
                                        dcc_text=dcc_text)
@@ -147,7 +167,8 @@ def main():
 
     # ── 寫出 report.json ──────────────────────────────
     report = _build_report_json(
-        macro, etf_signals, gemini_text, hrp_weights, dcc_result, date_str, now
+        macro, etf_signals, gemini_text, hrp_weights, dcc_result,
+        {"score": tyd_score, "label": tyd_label}, date_str, now
     )
     _write_report_json(report)
 

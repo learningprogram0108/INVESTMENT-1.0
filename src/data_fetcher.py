@@ -170,7 +170,7 @@ def fetch_fred(series_id: str, api_key: str, limit: int = 24) -> list:
 
 def yahoo_news_headlines(symbol: str, limit: int = 5) -> list:
     """
-    OpenBB (yfinance) → equity.news → list[str] 標題
+    OpenBB (yfinance) → equity.news → list[dict{"title","url"}]
     Fallback: 直接呼叫 Yahoo Finance Search API
     """
     obb = _get_obb()
@@ -180,12 +180,19 @@ def yahoo_news_headlines(symbol: str, limit: int = 5) -> list:
                 warnings.simplefilter("ignore")
                 result = obb.equity.news(symbol, limit=limit, provider="yfinance")
             df = result.to_dataframe()
-            for col in ("title", "headline", "summary", "text"):
-                if col in df.columns:
-                    headlines = [str(h) for h in df[col].dropna().tolist()[:limit] if h]
-                    if headlines:
-                        print(f"  [OBB/News] {symbol} {len(headlines)} 則")
-                        return headlines
+            items = []
+            title_col = next((c for c in ("title", "headline", "summary", "text") if c in df.columns), None)
+            url_col   = next((c for c in ("url", "link", "article_url") if c in df.columns), None)
+            if title_col:
+                rows = df.head(limit)
+                for _, row in rows.iterrows():
+                    t = str(row[title_col]) if pd.notna(row[title_col]) else ""
+                    u = str(row[url_col]) if url_col and pd.notna(row[url_col]) else ""
+                    if t:
+                        items.append({"title": t, "url": u})
+            if items:
+                print(f"  [OBB/News] {symbol} {len(items)} 則")
+                return items
         except Exception as e:
             print(f"  [OBB/News] {symbol}: {e}，fallback")
 
@@ -447,7 +454,7 @@ def _treasury_direct(av_key) -> tuple[float, float]:
 
 
 def _yahoo_news_direct(symbol: str, limit: int = 5) -> list:
-    """Yahoo Finance Search API 直接呼叫"""
+    """Yahoo Finance Search API 直接呼叫 → list[dict{"title","url"}]"""
     url = "https://query1.finance.yahoo.com/v1/finance/search"
     params = {"q": symbol, "newsCount": limit, "enableFuzzyQuery": False, "quotesCount": 0}
     headers = {
@@ -459,10 +466,18 @@ def _yahoo_news_direct(symbol: str, limit: int = 5) -> list:
         if r.status_code != 200:
             return []
         data = r.json()
-        headlines = [n.get("title", "") for n in data.get("news", [])[:limit] if n.get("title")]
-        if headlines:
-            print(f"  [News direct] {symbol} {len(headlines)} 則")
-        return headlines
+        items = []
+        for n in data.get("news", [])[:limit]:
+            title = n.get("title", "")
+            if not title:
+                continue
+            items.append({
+                "title": title,
+                "url":   n.get("link", ""),
+            })
+        if items:
+            print(f"  [News direct] {symbol} {len(items)} 則")
+        return items
     except Exception as e:
         print(f"  [News direct] {symbol}: {e}")
         return []
