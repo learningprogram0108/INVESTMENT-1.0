@@ -3,7 +3,3 @@ numpy==2.1.3
 requests==2.32.3
 scipy>=1.13.0
 arch>=6.0.0
-openbb>=4.3.0
-openbb-yfinance>=0.3.0
-openbb-fred>=0.2.0
-openbb-alpha-vantage>=0.1.0
