@@ -1,0 +1,193 @@
+{
+  "generated_at": "2026-05-20T16:34:06+08:00",
+  "macro": {
+    "us10y": 4.61,
+    "us02y": 4.07,
+    "cpi_yoy": 3.95,
+    "breakeven": 2.49,
+    "real_rate": 2.12,
+    "yield_curve": 0.54,
+    "sahm_triggered": false,
+    "sahm_indicator": 0.233,
+    "recession_prob": 0.0,
+    "hy_spread": 2.83,
+    "ism_pmi": [
+      53.0,
+      52.0,
+      52.7
+    ],
+    "pmi_second_deriv": 1.7
+  },
+  "etf_signals": [
+    {
+      "ticker": "VOO",
+      "name": "Vanguard S&P 500",
+      "price": 674.59,
+      "change_pct": -0.64,
+      "z_score": 2.475,
+      "rsi": 53.7,
+      "bb_pct": 0.639,
+      "sharpe_1y": 1.8,
+      "max_drawdown": -9.2,
+      "macd_hist": -0.7654,
+      "sentiment_score": 86.8,
+      "combined_confidence": 41.3,
+      "confidence_signal": "賣  出",
+      "technical_score": 23.5,
+      "value_score": null,
+      "macro_score": 67.9,
+      "cycle_phase": "⚠️ 樂觀期（利差壓縮）",
+      "fund_multiplier": 0.5,
+      "multiplier_mode": "刺客防禦",
+      "news_headlines": [
+        "Jeff Hook’s Blunt Warning: Private Equity Fees Are Destroying Returns for Retail Investors",
+        "Japan ETFs Are Up 41%. Here’s How to Play the Takaichi Boom",
+        "What Nvidia Earnings Mean for VOO and QQQ"
+      ]
+    },
+    {
+      "ticker": "QQQ",
+      "name": "Invesco QQQ Trust",
+      "price": 701.53,
+      "change_pct": -0.62,
+      "z_score": 2.91,
+      "rsi": 57.0,
+      "bb_pct": 0.665,
+      "sharpe_1y": 1.93,
+      "max_drawdown": -12.2,
+      "macd_hist": -0.8579,
+      "sentiment_score": 90.5,
+      "combined_confidence": 41.3,
+      "confidence_signal": "賣  出",
+      "technical_score": 23.5,
+      "value_score": null,
+      "macro_score": 67.9,
+      "cycle_phase": "⚠️ 樂觀期（過熱警戒）",
+      "fund_multiplier": 0.5,
+      "multiplier_mode": "刺客防禦",
+      "news_headlines": [
+        "Jeff Hook’s Blunt Warning: Private Equity Fees Are Destroying Returns for Retail Investors",
+        "What Nvidia Earnings Mean for VOO and QQQ",
+        "Retail Returns, Momo Retreats, NVIDIA Looms"
+      ]
+    },
+    {
+      "ticker": "GLD",
+      "name": "SPDR Gold Shares",
+      "price": 411.5,
+      "change_pct": -1.66,
+      "z_score": 0.22,
+      "rsi": 27.7,
+      "bb_pct": 0.022,
+      "sharpe_1y": 1.39,
+      "max_drawdown": -19.2,
+      "macd_hist": -1.0554,
+      "sentiment_score": 68.1,
+      "combined_confidence": 69.5,
+      "confidence_signal": "買  入",
+      "technical_score": 70.6,
+      "value_score": null,
+      "macro_score": 67.9,
+      "cycle_phase": "⚠️ 樂觀期（利差壓縮）",
+      "fund_multiplier": 0.5,
+      "multiplier_mode": "刺客防禦",
+      "news_headlines": [
+        "Update: Gold Trading Lower as USD and Yields Rise on Inflation Worries",
+        "Treasury Yields Spike To Trump's Second-Term High, Sinking Gold And S&P 500",
+        "Gold Edges Lower as USD and Yields Rise on Inflation Worries"
+      ]
+    },
+    {
+      "ticker": "VGIT",
+      "name": "Vanguard Intermediate-Term Treasury",
+      "price": 58.46,
+      "change_pct": -0.27,
+      "z_score": -2.946,
+      "rsi": 17.6,
+      "bb_pct": -0.031,
+      "sharpe_1y": -0.2,
+      "max_drawdown": -3.7,
+      "macd_hist": -0.0646,
+      "sentiment_score": 41.7,
+      "combined_confidence": 73.1,
+      "confidence_signal": "強力買入",
+      "technical_score": 76.5,
+      "value_score": null,
+      "macro_score": 67.9,
+      "cycle_phase": "⚠️ 樂觀期（利差壓縮）",
+      "fund_multiplier": 0.5,
+      "multiplier_mode": "刺客防禦",
+      "news_headlines": [
+        "I’m 58 With $1.2 Million Saved. A Financial Planner Said I’m Making One Critical Mistake"
+      ]
+    },
+    {
+      "ticker": "GRID",
+      "name": "First Trust NASDAQ Clean Edge Smart Grid",
+      "price": 185.01,
+      "change_pct": -2.22,
+      "z_score": 1.525,
+      "rsi": 34.5,
+      "bb_pct": 0.202,
+      "sharpe_1y": 1.96,
+      "max_drawdown": -11.8,
+      "macd_hist": -1.4612,
+      "sentiment_score": 78.9,
+      "combined_confidence": 50.1,
+      "confidence_signal": "持  有",
+      "technical_score": 38.2,
+      "value_score": null,
+      "macro_score": 67.9,
+      "cycle_phase": "⚠️ 樂觀期（利差壓縮）",
+      "fund_multiplier": 0.5,
+      "multiplier_mode": "刺客防禦",
+      "news_headlines": [
+        "From Copper to Nuclear: 6 ETFs That Cover Every Layer of the Grid Resilience Boom",
+        "The 5 Thematic ETFs Beating the S 500 — and 388 That Aren't",
+        "Top Thematic ETFs: Best Funds for Theme Investing in 2026"
+      ]
+    }
+  ],
+  "gemini_analysis": "🌙 AI 傳奇投資人分析\n\n德魯肯米勒（技術）：HOLD 信心30% — 動能收縮且Z分數過高，非趨勢突破點。\n\n巴菲特/葛拉漢（價值）：HOLD 信心40% — 債券估值不適用，權益資產價格處於歷史高位。\n\n索羅斯（總經）：SELL 信心60% — 殖利率飆升強化反射循環，風險資產面臨回調。\n\n蒙格決策：持有\n\n逆向思考三問：\n1. 通膨失控導致聯準會被迫大幅升息。\n2. 美債殖利率飆升對估值的負面壓縮效應。\n3. 錯失科技股動能帶來的潛在超額報酬。\n\n綜合說明：目前市場呈現動能減弱與殖利率飆升的共振，德魯肯米勒指出VOO與QQQ的Z分數分別高達2.48與2.91，顯示價格嚴重偏離均值且動能收縮，進場風險過高。索羅斯觀察到HY利差過度樂觀，掩蓋了殖利率飆升帶來的系統性風險，這導致VOO與VGIT的動態相關係數從0.192上升至0.237，資產間的對沖效應正在失效。蒙格提醒，當前HRP配置建議將90.5%權重放在VOO，但面對殖利率上行的環境，追逐高估值資產並不符合安全邊際原則，建議維持現有部位，靜待市場波動率回歸後再進行再平衡操作，避免在流動性緊縮初期盲目加倉。",
+  "hrp_weights": {
+    "GRID": 0.018,
+    "VOO": 0.0296,
+    "QQQ": 0.0331,
+    "GLD": 0.0249,
+    "VGIT": 0.8944
+  },
+  "dcc": {
+    "tickers": [
+      "VOO",
+      "VGIT",
+      "GLD"
+    ],
+    "corr": {
+      "VOO_VGIT": 0.236887143522896,
+      "VOO_GLD": 0.3441688518142978,
+      "VGIT_GLD": 0.42276552849898763
+    },
+    "corr_30d_avg": {
+      "VOO_VGIT": 0.19229616008489822,
+      "VOO_GLD": 0.3054164496382343,
+      "VGIT_GLD": 0.34293385407047755
+    },
+    "vol_annual": {
+      "VOO": 0.12766917058543792,
+      "VGIT": 0.03930362902581062,
+      "GLD": 0.21474653692364032
+    },
+    "hrp": {
+      "VOO": 0.9046218224971716,
+      "VGIT": 0.0030913810239409666,
+      "GLD": 0.09228679647888743
+    },
+    "risk_parity": {
+      "VOO": 0.21290200005732923,
+      "VGIT": 0.6703038764415167,
+      "GLD": 0.11679412350115413
+    },
+    "dcc_alpha": 0.0324713674929382,
+    "dcc_beta": 0.9133662927564189
+  }
+}
