@@ -40,6 +40,12 @@ import warnings
 from datetime import date, datetime
 from pathlib import Path
 
+# ── 強制 stdout/stderr 使用 UTF-8（跨平台：Windows cp950、CI 環境）──────────
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 warnings.filterwarnings("ignore")
 
 import numpy as np
@@ -251,8 +257,10 @@ def build_portfolio(returns: pd.DataFrame) -> "rp.Portfolio":
     port.assets_stats(
         method_mu="hist",
         method_cov="ledoit",
-        d=0.94,           # 指數衰減因子（部分版本支援時序加權）
+        # d= 參數已在 riskfolio-lib v7 移除
     )
+    # v7 中 alpha（CVaR/CDaR 顯著水準）改為 Portfolio 屬性，不再是 optimization() 的參數
+    port.alpha = ALPHA
     return port
 
 
@@ -289,7 +297,8 @@ def build_constraint_matrix(tickers: list) -> tuple[pd.DataFrame, pd.Series]:
         row_labels.append(f"{t}_hi")
 
     A = pd.DataFrame(rows_A, index=row_labels, columns=tickers)
-    b = pd.Series(vals_b, index=row_labels)
+    # riskfolio-lib v7 binequality setter 需要 2D DataFrame（shape n×1），不接受 Series
+    b = pd.DataFrame(vals_b, index=row_labels, columns=["b"])
     return A, b
 
 
@@ -340,7 +349,7 @@ def _run_classic(port: "rp.Portfolio", rm: str, label: str) -> pd.DataFrame | No
             rf=RF_DAILY,
             l=2,
             hist=True,
-            alpha=ALPHA,
+            # alpha 已移至 port.alpha 屬性（v7 API 變更）
         )
         if w is None or w.empty:
             print(f"  ⚠  求解器返回空結果（可能約束太緊或資料不足）")
@@ -421,8 +430,10 @@ def optimize_hrp(port: "rp.Portfolio", returns: pd.DataFrame) -> pd.DataFrame | 
     """
     print(f"\n  🔄  模式D｜HRP  層次風險平價  求解中...", end="", flush=True)
     try:
-        # 嘗試新版 API（riskfolio-lib >= 5.x）
-        w = port.optimization(
+        # riskfolio-lib v7+：HRP 由獨立的 HCPortfolio 類別處理
+        # （Classic Portfolio.optimization 已不支援 model='HRP'）
+        hc_port = rp.HCPortfolio(returns=port.returns)
+        w = hc_port.optimization(
             model="HRP",
             codependence="pearson",
             rm="MV",
@@ -430,18 +441,9 @@ def optimize_hrp(port: "rp.Portfolio", returns: pd.DataFrame) -> pd.DataFrame | 
             max_k=10,
             leaf_order=True,
         )
-    except TypeError:
-        # 舊版 API fallback（不支援 max_k / leaf_order）
-        try:
-            w = port.optimization(
-                model="HRP",
-                codependence="pearson",
-                rm="MV",
-                linkage="ward",
-            )
-        except Exception as e:
-            print(f"  ❌  HRP 求解失敗：{e}")
-            return None
+    except Exception as e:
+        print(f"  ❌  HRP 求解失敗：{e}")
+        return None
 
     if w is None or w.empty:
         print("  ⚠  HRP 返回空結果")
@@ -610,10 +612,11 @@ def plot_risk_contributions(
     fig.patch.set_facecolor(_C["bg"])
 
     try:
+        # v7 簽名：plot_risk_con(w, returns, cov=None, ...)
         rp.plot_risk_con(
             w,
+            returns,
             cov=port.cov,
-            returns=returns,
             rm=rm,
             rf=RF_DAILY,
             alpha=ALPHA,
