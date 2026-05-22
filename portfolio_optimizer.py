@@ -101,16 +101,19 @@ T_FACTOR:  int   = 252           # 年化乘數（交易日）
 
 # ── 個別資產權重上下限（凸最佳化約束）────────────────────────────────────────
 #   格式：{ ticker: (lower_bound, upper_bound) }
-#   設計原則：
-#     - 核心標的下限 ≥ 10%，確保核心曝險
+#   設計原則（v2 重構，防貪婪偏誤）：
+#     - VOO 下限 30%：核心護城河，確保底層美股全球輪動曝險
+#     - 0050.TW 上限 35%：拉住韁繩，防止優化器過度壓注台股單一市場
+#     - 00875.TW 上限 15%：衛星倉位收緊
 #     - GRID 上限 20%：因半年才手動下單，避免過度集中
-#     - VGIT 上限放寬至 40%：作為 TYD 觸發前的彈性儲蓄池
+#     - VGIT 上限縮至 20%：儲蓄池功能，不應過度擴張
+#   可行性驗證：下限總和 30+20+5+5+5 = 65% < 100% ✓
 ASSET_BOUNDS: dict = {
-    "VOO":      (0.10, 0.50),
-    "0050.TW":  (0.10, 0.50),
-    "00875.TW": (0.05, 0.20),
-    "GRID":     (0.05, 0.20),
-    "VGIT":     (0.05, 0.40),
+    "VOO":      (0.30, 0.55),   # 核心護城河，確保底層全球輪動
+    "0050.TW":  (0.20, 0.35),   # 拉住韁繩，防過度壓注台股
+    "00875.TW": (0.05, 0.15),   # 衛星上限收緊
+    "GRID":     (0.05, 0.20),   # 不變，半年手動下單限制
+    "VGIT":     (0.05, 0.20),   # 儲蓄池功能，不應過度擴張
 }
 
 # ── 當前實際持有部位（請依實際情況修改）──────────────────────────────────────
@@ -124,6 +127,20 @@ CURRENT_WEIGHTS: dict = {
 
 # ── 再平衡閾值 ─────────────────────────────────────────────────────────────
 REBALANCE_THRESHOLD: float = 0.05   # 任一資產絕對偏差 > 5% 才觸發信號
+
+# ── HRP 識別標識（不納入再平衡決策）──────────────────────────────────────────
+HRP_LABEL: str = "模式D｜HRP"   # HRP 為啟發式演算法，無報酬約束，不參與最優模型決策
+
+# ── 摩擦力過濾器 ────────────────────────────────────────────────────────────
+#   夏普提升不足時，交易成本往往吃掉改善幅度，建議靜態觀望
+SHARPE_IMPROVEMENT_MIN: float = 0.05  # 低於此值視為摩擦力吞噬改善幅度
+TX_COST_USD: float = 3.0              # 美股手動下單（GRID）固定手續費 USD
+TX_COST_TWD: float = 1.0             # 台股定期定額手續費 TWD
+
+# ── 戰術美債演算法觸發旗標（外部注入）──────────────────────────────────────────
+#   False = 靜態觀望，VGIT 維持凸最佳化目標配置
+#   True  = 觸發槓桿抄底，將超出 VGIT 最低倉位的預算全數轉入 TYD
+TYD_ALGO_SIGNAL: bool = False
 
 # ── 輸出路徑 ────────────────────────────────────────────────────────────────
 OUTPUT_DIR:  Path = Path("./portfolio_reports")
@@ -825,37 +842,54 @@ def plot_correlation_heatmap(returns: pd.DataFrame, save_path: Path) -> None:
 def compute_rebalance_signals(
     current: dict,
     optimal: dict,
+    sharpe_current: float = 0.0,
+    sharpe_optimal: float = 0.0,
     threshold: float = REBALANCE_THRESHOLD,
 ) -> dict:
     """
     比對當前實際部位與最佳化目標，生成再平衡行動信號。
 
-    GRID 特殊處理（摩擦力優化）：
+    摩擦力過濾（v2 新增）：
+    - 若最優模型夏普提升 < SHARPE_IMPROVEMENT_MIN，視為改善幅度被手續費吞噬
+    - 所有已觸發標的改為「靜態觀望」，避免無意義的高頻週轉
+
+    GRID 特殊處理：
     - 因複委託摩擦力，GRID 採「定期定額累積、每半年手動下單一次」
     - 若 GRID 偏差超過閾值，標記為「半年排程」而非「立即執行」
-    - GRID 的資金差額在下次排程日前，暫時累積於 VGIT（TYD 儲蓄池）
 
-    VGIT 特殊提示：
-    - 若 VGIT 信號為「減碼」，提示可將多餘資金轉換為 TYD 觸發資金
+    TYD 演算法旗標（v2 新增）：
+    - 若 TYD_ALGO_SIGNAL=True，VGIT 超出最低倉位的預算將提示轉入 TYD
     """
     tickers = [t for t in TICKERS if t in current or t in optimal]
     signals = {}
 
+    # ── 摩擦力判斷（全域）────────────────────────────────────────────────────
+    sharpe_delta    = sharpe_optimal - sharpe_current
+    friction_blocked = sharpe_delta < SHARPE_IMPROVEMENT_MIN
+
     print(f"\n{'='*58}")
     print(f"  § 6  再平衡分析  閾值：±{threshold*100:.0f}%")
+    print(f"  摩擦力過濾：Δ Sharpe = {sharpe_delta:+.3f}"
+          f"  （閾值 {SHARPE_IMPROVEMENT_MIN}）"
+          f"  {'⚠ 靜態觀望' if friction_blocked else '✅ 允許執行'}")
     print(f"{'='*58}")
     print(f"  {'資產':<13} {'當前':>7} {'目標':>7} {'偏差':>8} {'信號'}")
     print(f"  {'-'*55}")
 
     for t in tickers:
-        cur  = current.get(t, 0.0)
-        opt  = optimal.get(t, 0.0)
-        dev  = opt - cur
-        trig = abs(dev) > threshold
+        cur     = current.get(t, 0.0)
+        opt     = optimal.get(t, 0.0)
+        dev     = opt - cur
+        trig    = abs(dev) > threshold
         is_grid = TICKER_META.get(t, {}).get("rebal") == "semi-annual"
 
         if not trig:
             action = "✅ 無需調整"
+        elif friction_blocked:
+            action = (
+                f"⏸ 靜態觀望（Δ Sharpe {sharpe_delta:+.3f} < {SHARPE_IMPROVEMENT_MIN}，"
+                f"考量複委託手續費摩擦力，暫不調整）"
+            )
         elif is_grid:
             action = "📅 半年排程（累積中）"
         elif dev > 0:
@@ -863,28 +897,55 @@ def compute_rebalance_signals(
         else:
             action = "🔽 減持（立即）"
 
+        # ── TYD 戰術旗標（僅 VGIT）──────────────────────────────────────────
+        tyd_note = ""
+        if t == "VGIT" and TYD_ALGO_SIGNAL:
+            vgit_min   = ASSET_BOUNDS["VGIT"][0]
+            tyd_budget = max(0.0, opt - vgit_min)
+            if tyd_budget > 0:
+                tyd_note = (
+                    f"戰術美債訊號觸發！VGIT 僅保留最低 {vgit_min*100:.0f}% 儲蓄池，"
+                    f"其餘 {tyd_budget*100:.1f}% 資金全數撥入 TYD 進行波段加速槓桿抄底"
+                )
+
         extra = ""
-        if t == "VGIT" and trig and dev < 0:
+        if tyd_note:
+            extra = f"  → {tyd_note}"
+        elif t == "VGIT" and trig and dev < 0 and not TYD_ALGO_SIGNAL:
             extra = "  → 考慮轉為 TYD 儲蓄"
         if t == "GRID" and trig:
             extra = f"  → 差額 {abs(dev)*100:.1f}% 暫存 VGIT"
 
-        print(f"  {t:<13} {cur*100:>6.1f}% {opt*100:>6.1f}% {dev*100:>+7.1f}%  {action}{extra}")
+        print(f"  {t:<13} {cur*100:>6.1f}% {opt*100:>6.1f}% {dev*100:>+7.1f}%  {action[:20]}{extra}")
 
         signals[t] = {
-            "current":     cur,
-            "optimal":     opt,
-            "deviation":   dev,
-            "triggered":   trig,
-            "direction":   "buy" if dev > 0 else "sell",
-            "semi_annual": is_grid,
-            "action":      action,
+            "current":         cur,
+            "optimal":         opt,
+            "deviation":       dev,
+            "triggered":       trig,
+            "direction":       "buy" if dev > 0 else "sell",
+            "semi_annual":     is_grid,
+            "action":          action,
+            "friction_blocked": friction_blocked and trig,
+            "tyd_note":        tyd_note,
         }
 
     triggered = [t for t, s in signals.items() if s["triggered"]]
     print(f"\n  ⚡ 觸發再平衡：{len(triggered)} / {len(tickers)} 個資產")
     if triggered:
         print(f"     標的：{triggered}")
+    if friction_blocked and triggered:
+        print(f"  ⏸  摩擦力過濾生效：上述觸發標的均已改為靜態觀望")
+
+    # ── 全域摘要（供呼叫方讀取）─────────────────────────────────────────────
+    turnover = sum(abs(signals[t]["deviation"]) for t in tickers if t in signals)
+    signals["_meta"] = {
+        "sharpe_current":  sharpe_current,
+        "sharpe_optimal":  sharpe_optimal,
+        "sharpe_delta":    sharpe_delta,
+        "friction_blocked": friction_blocked,
+        "turnover":        round(turnover, 4),
+    }
 
     return signals
 
@@ -900,6 +961,10 @@ def generate_obsidian_report(
     optimal_key: str,
     report_dir: Path,
     prices: pd.DataFrame,
+    sharpe_current: float = 0.0,
+    sharpe_optimal: float = 0.0,
+    friction_blocked: bool = False,
+    turnover: float = 0.0,
 ) -> Path:
     """
     生成 Obsidian 相容的 Markdown 報告。
@@ -994,6 +1059,8 @@ def generate_obsidian_report(
     L.append("| 資產 | 當前 | 目標 | 偏差 | 信號 |")
     L.append("|------|:----:|:----:|:----:|------|")
     for t, sig in rebal_signals.items():
+        if t == "_meta":
+            continue
         arrow = "▲" if sig["direction"] == "buy" else "▼"
         L.append(
             f"| `{t}` "
@@ -1003,6 +1070,42 @@ def generate_obsidian_report(
             f"| {sig['action']} |"
         )
     L.append("")
+
+    # ── §4 HRP 免責聲明 callout ───────────────────────────────────────────
+    L += [
+        f"> [!warning] {HRP_LABEL} 模式聲明 — 僅基準參考，不作再平衡依據",
+        f"> {HRP_LABEL} 為無監督層次風險平價演算法，缺乏報酬約束，不遵守個別資產下限，",
+        "> 且在美債大熊市樣本期可能產生負 Sharpe。",
+        f"> 嚴格禁止以 HRP 權重作為實務再平衡依據，決策基準固定為 **{optimal_key}**。",
+        "",
+    ]
+
+    # ── §4.5  交易成本摩擦力過濾 ─────────────────────────────────────────
+    sharpe_delta = sharpe_optimal - sharpe_current
+    L += [
+        "## 四之五、交易成本摩擦力過濾",
+        "",
+        "| 項目 | 數值 |",
+        "|------|------|",
+        f"| 當前部位夏普 | {sharpe_current:.3f} |",
+        f"| {optimal_key} 夏普 | {sharpe_optimal:.3f} |",
+        f"| 夏普提升 Δ | {sharpe_delta:+.3f} |",
+        f"| 觸發摩擦力閾值（{SHARPE_IMPROVEMENT_MIN}）| "
+        f"{'**是 — 所有觸發標的改為靜態觀望**' if friction_blocked else '否 — 允許執行'} |",
+        f"| 總週轉率 | {turnover:.1%} |",
+        f"| 美股手續費估算（GRID 每次下單） | USD {TX_COST_USD:.2f} |",
+        f"| 台股手續費估算（每次 DCA） | TWD {TX_COST_TWD:.2f} |",
+        "",
+    ]
+
+    # ── §4.6  TYD 戰術美債演算法信號 ─────────────────────────────────────
+    tyd_note_vgit = rebal_signals.get("VGIT", {}).get("tyd_note", "")
+    L += [
+        "> [!info] 戰術美債（TYD）演算法信號",
+        f"> 狀態：{'🟢 觸發' if TYD_ALGO_SIGNAL else '⚫ 未觸發（靜態觀望）'}",
+        f"> {tyd_note_vgit if tyd_note_vgit else 'TYD_ALGO_SIGNAL = False，VGIT 維持凸最佳化目標配置。'}",
+        "",
+    ]
 
     # ── §5  分析圖表（Obsidian ![[]] 語法）─────────────────────────────────
     L += ["## 五、分析圖表", ""]
@@ -1136,12 +1239,18 @@ def main(no_plot: bool = False) -> dict:
             print(f"  {m['label']:<15} {m['sharpe']:>7.3f} "
                   f"{m['ann_ret']:>+9.2f}% {m['ann_vol']:>9.2f}% {m['mdd']:>+7.2f}%")
 
-    # 選出最高夏普比率的模型
-    valid_m = [m for m in metrics_list if "sharpe" in m]
-    best    = max(valid_m, key=lambda x: x["sharpe"]) if valid_m else {"label": "模式D｜HRP", "sharpe": 0}
+    # 排除 HRP（啟發式演算法，無報酬約束，不參與最優模型決策）
+    metrics_list_clean    = [m for m in metrics_list if "sharpe" in m]
+    metrics_for_selection = [m for m in metrics_list_clean if m["label"] != HRP_LABEL]
+    if not metrics_for_selection:
+        # 凸最佳化模式全部失敗，降級為 HRP
+        metrics_for_selection = metrics_list_clean
+        print("  ⚠  凸最佳化模式全部失敗，降級使用 HRP 作為再平衡基準")
+    best        = max(metrics_for_selection, key=lambda m: m["sharpe"]) if metrics_for_selection else {"label": HRP_LABEL, "sharpe": 0.0}
     optimal_key = best["label"]
     optimal_w   = weights_dict.get(optimal_key)
-    print(f"\n  🏆 最優模型：{optimal_key}（Sharpe = {best.get('sharpe', 'N/A'):.3f}）")
+    print(f"\n  🏆 最優模型：{optimal_key}（Sharpe = {best.get('sharpe', 0.0):.3f}）")
+    print(f"     ℹ  {HRP_LABEL} 已排除於最優選擇（啟發式，無報酬約束）")
 
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     # § 5  視覺化
@@ -1169,6 +1278,20 @@ def main(no_plot: bool = False) -> dict:
                                     report_dir / fname)
 
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # § 4.5  計算當前持有部位的夏普（摩擦力過濾基準）
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    current_w_df = pd.DataFrame(
+        [CURRENT_WEIGHTS.get(t, 0.0) for t in TICKERS],
+        index=TICKERS,
+        columns=["w"],
+    )
+    current_metrics_row = compute_metrics(current_w_df, returns, "當前持有")
+    sharpe_current = current_metrics_row.get("sharpe", 0.0)
+    sharpe_optimal = best.get("sharpe", 0.0)
+    print(f"\n  📐 當前持有夏普：{sharpe_current:.3f}  →  {optimal_key} 夏普：{sharpe_optimal:.3f}"
+          f"  （Δ {sharpe_optimal - sharpe_current:+.3f}）")
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     # § 6  再平衡分析
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     if optimal_w is not None and not optimal_w.empty:
@@ -1185,6 +1308,8 @@ def main(no_plot: bool = False) -> dict:
     rebal_signals = compute_rebalance_signals(
         current=CURRENT_WEIGHTS,
         optimal=optimal_dict,
+        sharpe_current=sharpe_current,
+        sharpe_optimal=sharpe_optimal,
         threshold=REBALANCE_THRESHOLD,
     )
 
@@ -1195,13 +1320,18 @@ def main(no_plot: bool = False) -> dict:
     print(f"  § 7  輸出報告")
     print(f"{'='*58}")
 
+    _meta = rebal_signals.get("_meta", {})
     generate_obsidian_report(
-        weights_dict  = weights_dict,
-        metrics_list  = metrics_list,
-        rebal_signals = rebal_signals,
-        optimal_key   = optimal_key,
-        report_dir    = report_dir,
-        prices        = prices,
+        weights_dict     = weights_dict,
+        metrics_list     = metrics_list,
+        rebal_signals    = rebal_signals,
+        optimal_key      = optimal_key,
+        report_dir       = report_dir,
+        prices           = prices,
+        sharpe_current   = _meta.get("sharpe_current", sharpe_current),
+        sharpe_optimal   = _meta.get("sharpe_optimal", sharpe_optimal),
+        friction_blocked = _meta.get("friction_blocked", False),
+        turnover         = _meta.get("turnover", 0.0),
     )
 
     # JSON 供外部系統（LINE Bot / 儀表板）消費
@@ -1224,11 +1354,19 @@ def main(no_plot: bool = False) -> dict:
         "rebalance": {
             t: {k: _serialize(v) for k, v in sig.items()}
             for t, sig in rebal_signals.items()
+            if t != "_meta"
         },
         "asset_bounds":    ASSET_BOUNDS,
         "current_weights": CURRENT_WEIGHTS,
         "rf_annual":       RF_ANNUAL,
         "alpha":           ALPHA,
+        # ── v2 新增：摩擦力過濾與 TYD 旗標 ──────────────────────────────────
+        "sharpe_current":  round(_meta.get("sharpe_current", sharpe_current), 4),
+        "sharpe_optimal":  round(_meta.get("sharpe_optimal", sharpe_optimal), 4),
+        "sharpe_delta":    round(_meta.get("sharpe_delta", sharpe_optimal - sharpe_current), 4),
+        "friction_blocked": _meta.get("friction_blocked", False),
+        "tyd_algo_signal": TYD_ALGO_SIGNAL,
+        "turnover":        round(_meta.get("turnover", 0.0), 4),
     }
 
     json_path = report_dir / "portfolio_optimization.json"
