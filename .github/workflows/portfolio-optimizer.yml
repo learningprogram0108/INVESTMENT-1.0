@@ -40,10 +40,22 @@ jobs:
             --start "${{ inputs.start_date }}" \
             --rf "${{ inputs.rf_annual }}"
 
+      - name: Copy JSON to dashboard data
+        run: |
+          DATE=$(date '+%Y-%m-%d')
+          JSON_SRC="portfolio_reports/${DATE}/portfolio_optimization.json"
+          if [ -f "$JSON_SRC" ]; then
+            mkdir -p docs/data
+            cp "$JSON_SRC" docs/data/portfolio_optimization.json
+            echo "Copied $JSON_SRC → docs/data/portfolio_optimization.json"
+          else
+            echo "Warning: $JSON_SRC not found, skipping copy"
+          fi
+
       - name: Commit and push report
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add portfolio_reports/
-          git diff --cached --quiet || git commit -m "chore: update portfolio optimization report [skip ci]"
+          git add portfolio_reports/ docs/data/portfolio_optimization.json
+          git diff --cached --quiet || git commit -m "chore: update portfolio optimization report & dashboard data [skip ci]"
           git push
