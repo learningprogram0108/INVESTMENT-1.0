@@ -3,8 +3,8 @@
   "optimal_model": "模式A｜MV",
   "weights": {
     "模式A｜MV": {
-      "VOO": 0.217771,
-      "0050.TW": 0.482229,
+      "VOO": 0.217772,
+      "0050.TW": 0.482228,
       "00875.TW": 0.05,
       "GRID": 0.2,
       "VGIT": 0.05
@@ -68,8 +68,8 @@
   "rebalance": {
     "VOO": {
       "current": 0.35,
-      "optimal": 0.21777145420610355,
-      "deviation": -0.13222854579389642,
+      "optimal": 0.21777170154681394,
+      "deviation": -0.13222829845318604,
       "triggered": true,
       "direction": "sell",
       "semi_annual": false,
@@ -77,8 +77,8 @@
     },
     "0050.TW": {
       "current": 0.25,
-      "optimal": 0.4822285462732378,
-      "deviation": 0.2322285462732378,
+      "optimal": 0.4822282989324966,
+      "deviation": 0.23222829893249658,
       "triggered": true,
       "direction": "buy",
       "semi_annual": false,
@@ -86,8 +86,8 @@
     },
     "00875.TW": {
       "current": 0.1,
-      "optimal": 0.05000000029965413,
-      "deviation": -0.049999999700345875,
+      "optimal": 0.05000000029962812,
+      "deviation": -0.04999999970037189,
       "triggered": false,
       "direction": "sell",
       "semi_annual": false,
@@ -95,8 +95,8 @@
     },
     "GRID": {
       "current": 0.15,
-      "optimal": 0.19999999885464334,
-      "deviation": 0.049999998854643346,
+      "optimal": 0.1999999988547287,
+      "deviation": 0.049999998854728694,
       "triggered": false,
       "direction": "buy",
       "semi_annual": true,
@@ -104,8 +104,8 @@
     },
     "VGIT": {
       "current": 0.15,
-      "optimal": 0.05000000036636107,
-      "deviation": -0.09999999963363893,
+      "optimal": 0.0500000003663327,
+      "deviation": -0.09999999963366729,
       "triggered": true,
       "direction": "sell",
       "semi_annual": false,

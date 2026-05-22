@@ -1,16 +1,16 @@
 {
-  "generated_at": "2026-05-21T22:01:32+08:00",
+  "generated_at": "2026-05-22T17:48:58+08:00",
   "macro": {
-    "us10y": 4.67,
-    "us02y": 4.13,
+    "us10y": 4.57,
+    "us02y": 4.04,
     "cpi_yoy": 3.95,
-    "breakeven": 2.44,
-    "real_rate": 2.23,
-    "yield_curve": 0.54,
+    "breakeven": 2.39,
+    "real_rate": 2.18,
+    "yield_curve": 0.53,
     "sahm_triggered": false,
     "sahm_indicator": 0.233,
     "recession_prob": 0.0,
-    "hy_spread": 2.86,
+    "hy_spread": 2.8,
     "ism_pmi": [
       53.0,
       52.0,
@@ -28,13 +28,13 @@
   "signal_lights": {
     "VOO": {
       "light": "🟡 維持",
-      "reason": "RSI62正常、RISK_ON順風",
+      "reason": "RSI65正常、RISK_ON順風",
       "prev_light": "🟡 維持",
       "changed": false
     },
     "QQQ": {
       "light": "🟡 維持",
-      "reason": "RSI64正常、RISK_ON順風",
+      "reason": "RSI68正常、RISK_ON順風",
       "prev_light": "🟡 維持",
       "changed": false
     },
@@ -58,9 +58,9 @@
     },
     "GRID": {
       "light": "🟡 維持",
-      "reason": "RSI48正常、RISK_ON順風",
-      "prev_light": "🔴 減碼",
-      "changed": true
+      "reason": "RSI50正常、RISK_ON順風",
+      "prev_light": "🟡 維持",
+      "changed": false
     }
   },
   "tail_risks": [],
@@ -68,15 +68,15 @@
     {
       "ticker": "VOO",
       "name": "Vanguard S&P 500",
-      "price": 680.7,
-      "change_pct": -0.13,
-      "z_score": 2.659,
-      "rsi": 61.7,
-      "bb_pct": 0.723,
-      "sharpe_1y": 1.9,
+      "price": 682.84,
+      "change_pct": 0.19,
+      "z_score": 2.75,
+      "rsi": 65.1,
+      "bb_pct": 0.767,
+      "sharpe_1y": 1.92,
       "max_drawdown": -9.2,
-      "macd_hist": -1.066,
-      "sentiment_score": 88.6,
+      "macd_hist": -0.9295,
+      "sentiment_score": 89.5,
       "combined_confidence": 41.3,
       "confidence_signal": "賣  出",
       "technical_score": 23.5,
@@ -87,40 +87,40 @@
       "multiplier_mode": "刺客防禦",
       "news_headlines": [
         {
-          "title": "This Boring International ETF Might Be One Of The Smartest Value Bets Right Now",
-          "url": "https://finance.yahoo.com/m/062072a5-a315-3bf8-a13b-cab585ccd3fc/this-boring-international-etf.html",
+          "title": "4 Vanguard ETFs That Complement Each Other Well in a Portfolio",
+          "url": "https://finance.yahoo.com/m/2a43c2be-d83c-399e-81eb-174c5902a5b0/4-vanguard-etfs-that.html",
+          "publisher": "Motley Fool",
+          "summary": "",
+          "title_zh": "投資組合中互補的 4 檔先鋒 ETF"
+        },
+        {
+          "title": "The $300,000 Mistake: Financial Advisor Explains Why Waiting to Buy VOO Is Costing You Compounding",
+          "url": "https://finance.yahoo.com/m/3d3646c4-d4ba-3c00-a591-a2480ecba71d/the-%24300%2C000-mistake%3A.html",
           "publisher": "24/7 Wall St.",
           "summary": "",
-          "title_zh": "這檔平淡的國際 ETF 可能是目前最聰明的價值投資之一"
+          "title_zh": "30 萬美元的代價：理財顧問解析延遲買入 VOO 的複利損失"
         },
         {
-          "title": "Vanguard S&P 500 ETF (VOO): Graham Stephan Likes This Index Fund",
-          "url": "https://finance.yahoo.com/markets/stocks/articles/vanguard-p-500-etf-voo-194955585.html",
-          "publisher": "Insider Monkey",
+          "title": "An Investor’s Field Guide to ETF Structures",
+          "url": "https://finance.yahoo.com/m/466af866-a649-32dc-bd18-32d81aab0718/an-investor%E2%80%99s-field-guide-to.html",
+          "publisher": "etf.com",
           "summary": "",
-          "title_zh": "先鋒標普 500 ETF (VOO)：葛拉漢·史蒂芬青睞此指數基金"
-        },
-        {
-          "title": "Vanguard 500 Index Fund (VFIAX): Top Stock Pick by Graham Stephan",
-          "url": "https://finance.yahoo.com/markets/stocks/articles/vanguard-500-index-fund-vfiax-194924160.html",
-          "publisher": "Insider Monkey",
-          "summary": "",
-          "title_zh": "先鋒 500 指數基金 (VFIAX)：葛拉漢·史蒂芬的首選股票"
+          "title_zh": "投資人必讀：ETF 結構指南"
         }
       ]
     },
     {
       "ticker": "QQQ",
       "name": "Invesco QQQ Trust",
-      "price": 711.55,
-      "change_pct": -0.22,
-      "z_score": 3.057,
-      "rsi": 64.3,
-      "bb_pct": 0.726,
-      "sharpe_1y": 2.03,
+      "price": 714.51,
+      "change_pct": 0.19,
+      "z_score": 3.142,
+      "rsi": 67.5,
+      "bb_pct": 0.757,
+      "sharpe_1y": 2.05,
       "max_drawdown": -12.2,
-      "macd_hist": -1.4685,
-      "sentiment_score": 91.5,
+      "macd_hist": -1.2796,
+      "sentiment_score": 91.6,
       "combined_confidence": 41.3,
       "confidence_signal": "賣  出",
       "technical_score": 23.5,
@@ -131,43 +131,43 @@
       "multiplier_mode": "刺客防禦",
       "news_headlines": [
         {
-          "title": "Stock Market Today: Dow Falls After Surprise Jobless Claims Data; Nvidia Waffles On Earnings (Live Coverage)",
-          "url": "https://finance.yahoo.com/m/ea4d7a5f-76c3-39b9-a3ed-03d9a8d410d9/stock-market-today%3A-dow-falls.html",
-          "publisher": "Investor's Business Daily",
+          "title": "Nasdaq, S&P 500, Dow Futures Climb As Trump's $2B Quantum Computing Bet Outweighs Iran Jitters: RKLB, IBM, RGTI, NIO In Focus",
+          "url": "https://finance.yahoo.com/m/9e6ea4d3-efe6-3dde-a195-483328e15ec8/nasdaq%2C-s%26p-500%2C-dow-futures.html",
+          "publisher": "Stocktwits",
           "summary": "",
-          "title_zh": "今日股市：失業救濟數據意外，道瓊下跌；輝達財報震盪"
+          "title_zh": "美股期貨走揚，川普量子運算投資蓋過伊朗緊張局勢"
         },
         {
-          "title": "Exchange-Traded Funds, Equity Futures Lower Pre-Bell Thursday Amid Uncertainty Surrounding US-Iran Talks",
-          "url": "https://finance.yahoo.com/markets/stocks/articles/exchange-traded-funds-equity-futures-131835522.html",
-          "publisher": "MT Newswires",
+          "title": "Dow Hits Record Highs, S&P 500 And Nasdaq Climb Amid Hopes Of Diplomatic Resolution Between US and Iran— IBM, STLA, SPOT, FCEL, EL In Focus",
+          "url": "https://finance.yahoo.com/m/bb7e1c86-7cc2-3081-8515-f12747cabc85/dow-hits-record-highs%2C-s%26p.html",
+          "publisher": "Stocktwits",
           "summary": "",
-          "title_zh": "美伊談判不確定性籠罩，週四盤前 ETF 與股指期貨走低"
+          "title_zh": "道瓊創新高，美伊外交緩解希望帶動美股上漲"
         },
         {
-          "title": "MAGS Bundles the Magnificent Seven Into One Ticker, And That Concentration Cuts Both Ways",
-          "url": "https://finance.yahoo.com/m/45739fb7-5abe-32cd-9fd7-dd9398f674b4/mags-bundles-the-magnificent.html",
-          "publisher": "24/7 Wall St.",
+          "title": "Stocks Rebound as Crude Oil Falls on Hopes for a US-Iran Deal",
+          "url": "https://finance.yahoo.com/m/f559af84-72d1-3d00-97bb-8c78617ae50a/stocks-rebound-as-crude-oil.html",
+          "publisher": "Barchart",
           "summary": "",
-          "title_zh": "MAGS 將七巨頭打包成一檔 ETF，集中化投資有利有弊"
+          "title_zh": "原油價格下跌，美伊協議希望帶動股市反彈"
         }
       ]
     },
     {
       "ticker": "GLD",
       "name": "SPDR Gold Shares",
-      "price": 413.94,
-      "change_pct": -0.83,
-      "z_score": 0.267,
-      "rsi": 35.8,
-      "bb_pct": 0.167,
-      "sharpe_1y": 1.29,
+      "price": 416.99,
+      "change_pct": -0.1,
+      "z_score": 0.328,
+      "rsi": 39.3,
+      "bb_pct": 0.256,
+      "sharpe_1y": 1.32,
       "max_drawdown": -19.2,
-      "macd_hist": -1.1507,
-      "sentiment_score": 68.7,
-      "combined_confidence": 66.0,
+      "macd_hist": -0.956,
+      "sentiment_score": 69.4,
+      "combined_confidence": 60.7,
       "confidence_signal": "買  入",
-      "technical_score": 64.7,
+      "technical_score": 55.9,
       "value_score": null,
       "macro_score": 67.9,
       "cycle_phase": "⚠️ 樂觀期（利差壓縮）",
@@ -175,43 +175,43 @@
       "multiplier_mode": "刺客防禦",
       "news_headlines": [
         {
+          "title": "An Investor’s Field Guide to ETF Structures",
+          "url": "https://finance.yahoo.com/m/466af866-a649-32dc-bd18-32d81aab0718/an-investor%E2%80%99s-field-guide-to.html",
+          "publisher": "etf.com",
+          "summary": "",
+          "title_zh": "投資人必讀：ETF 結構指南"
+        },
+        {
+          "title": "Update: Gold Rises as the Dollar and Yields Moderate as Iran Considers a Fresh U.S. Peace Offer",
+          "url": "https://finance.yahoo.com/markets/commodities/articles/gold-rises-dollar-yields-moderate-180142345.html",
+          "publisher": "MT Newswires",
+          "summary": "",
+          "title_zh": "更新：美元與殖利率回落，伊朗考慮美國和平提議，金價上漲"
+        },
+        {
           "title": "Gold Trading Lower as USD and Yields Climb While Iran Considers a Fresh U.S. Peace Offer",
           "url": "https://finance.yahoo.com/markets/commodities/articles/gold-trading-lower-usd-yields-131948451.html",
           "publisher": "MT Newswires",
           "summary": "",
-          "title_zh": "美元與殖利率攀升，伊朗考慮美國新提議，金價走低"
-        },
-        {
-          "title": "Exchange-Traded Funds, Equity Futures Lower Pre-Bell Thursday Amid Uncertainty Surrounding US-Iran Talks",
-          "url": "https://finance.yahoo.com/markets/stocks/articles/exchange-traded-funds-equity-futures-131835522.html",
-          "publisher": "MT Newswires",
-          "summary": "",
-          "title_zh": "美伊談判不確定性籠罩，週四盤前 ETF 與股指期貨走低"
-        },
-        {
-          "title": "Update: Gold Trading Higher as Yields and the Dollar Decline",
-          "url": "https://finance.yahoo.com/markets/commodities/articles/gold-trading-higher-yields-dollar-180012907.html",
-          "publisher": "MT Newswires",
-          "summary": "",
-          "title_zh": "更新：殖利率與美元下滑，金價走高"
+          "title_zh": "美元與殖利率攀升，伊朗考慮美國和平提議，金價走低"
         }
       ]
     },
     {
       "ticker": "VGIT",
       "name": "Vanguard Intermediate-Term Treasury",
-      "price": 58.6,
-      "change_pct": -0.2,
-      "z_score": -2.439,
-      "rsi": 34.3,
-      "bb_pct": 0.151,
-      "sharpe_1y": -0.12,
+      "price": 58.75,
+      "change_pct": 0.05,
+      "z_score": -2.107,
+      "rsi": 40.8,
+      "bb_pct": 0.253,
+      "sharpe_1y": -0.05,
       "max_drawdown": -3.7,
-      "macd_hist": -0.0438,
-      "sentiment_score": 46.1,
-      "combined_confidence": 69.5,
+      "macd_hist": -0.0346,
+      "sentiment_score": 49.1,
+      "combined_confidence": 64.2,
       "confidence_signal": "買  入",
-      "technical_score": 70.6,
+      "technical_score": 61.8,
       "value_score": null,
       "macro_score": 67.9,
       "cycle_phase": "⚠️ 樂觀期（利差壓縮）",
@@ -223,25 +223,25 @@
           "url": "https://finance.yahoo.com/m/8aff7e17-c1d9-323a-94aa-bd3b57a92ab7/i%E2%80%99m-58-with-%241.2-million.html",
           "publisher": "24/7 Wall St.",
           "summary": "",
-          "title_zh": "我 58 歲存了 120 萬美元，理財顧問說我犯了一個致命錯誤"
+          "title_zh": "58 歲存 120 萬美元，理財規劃師指出的致命錯誤"
         }
       ]
     },
     {
       "ticker": "TYD",
       "name": "Direxion Daily 7-10 Year Treasury Bull 3x",
-      "price": 23.18,
-      "change_pct": -0.71,
-      "z_score": -2.393,
-      "rsi": 32.0,
-      "bb_pct": 0.117,
-      "sharpe_1y": -0.21,
+      "price": 23.4,
+      "change_pct": 0.21,
+      "z_score": -2.134,
+      "rsi": 38.0,
+      "bb_pct": 0.21,
+      "sharpe_1y": -0.14,
       "max_drawdown": -14.4,
-      "macd_hist": -0.0848,
-      "sentiment_score": 46.5,
-      "combined_confidence": 69.5,
+      "macd_hist": -0.071,
+      "sentiment_score": 48.8,
+      "combined_confidence": 64.2,
       "confidence_signal": "買  入",
-      "technical_score": 70.6,
+      "technical_score": 61.8,
       "value_score": null,
       "macro_score": 67.9,
       "cycle_phase": "⚠️ 樂觀期（利差壓縮）",
@@ -252,18 +252,18 @@
     {
       "ticker": "GRID",
       "name": "First Trust NASDAQ Clean Edge Smart Grid",
-      "price": 189.86,
-      "change_pct": 0.73,
-      "z_score": 1.809,
-      "rsi": 47.6,
-      "bb_pct": 0.408,
-      "sharpe_1y": 2.04,
+      "price": 190.98,
+      "change_pct": 1.32,
+      "z_score": 1.884,
+      "rsi": 50.1,
+      "bb_pct": 0.465,
+      "sharpe_1y": 2.07,
       "max_drawdown": -11.8,
-      "macd_hist": -1.529,
-      "sentiment_score": 81.5,
-      "combined_confidence": 50.1,
+      "macd_hist": -1.4576,
+      "sentiment_score": 82.3,
+      "combined_confidence": 44.8,
       "confidence_signal": "持  有",
-      "technical_score": 38.2,
+      "technical_score": 29.4,
       "value_score": null,
       "macro_score": 67.9,
       "cycle_phase": "⚠️ 樂觀期（利差壓縮）",
@@ -275,33 +275,33 @@
           "url": "https://finance.yahoo.com/m/82a5ec9c-d00a-355b-ba05-be6a92911ba8/from-copper-to-nuclear%3A-6.html",
           "publisher": "24/7 Wall St.",
           "summary": "",
-          "title_zh": "從銅到核能：涵蓋電網韌性熱潮各層面的 6 檔 ETF"
+          "title_zh": "從銅到核能：涵蓋電網韌性熱潮的 6 檔 ETF"
         },
         {
           "title": "The 5 Thematic ETFs Beating the S 500 — and 388 That Aren't",
           "url": "https://finance.yahoo.com/m/334c088e-2877-3162-81b5-25501ead2612/the-5-thematic-etfs-beating.html",
           "publisher": "etf.com",
           "summary": "",
-          "title_zh": "5 檔擊敗標普 500 的主題 ETF，以及 388 檔落後者"
+          "title_zh": "5 檔績效超越標普 500 的主題 ETF 與 388 檔落後者"
         },
         {
           "title": "Top Thematic ETFs: Best Funds for Theme Investing in 2026",
           "url": "https://finance.yahoo.com/m/44c1bfaf-6572-3ad5-ab16-16b148e8cdb4/top-thematic-etfs%3A-best-funds.html",
           "publisher": "etf.com",
           "summary": "",
-          "title_zh": "頂尖主題 ETF：2026 年最佳主題投資基金"
+          "title_zh": "2026 年頂尖主題 ETF：最佳投資標的"
         }
       ]
     }
   ],
-  "gemini_analysis": "AI 市場解讀\n\n【體制：RISK_ON · 信用正常 · 加速擴張 · 曲線正常】\n\n當前市場處於風險偏好環境，ISM製造業指數擴張支撐股市表現。VOO與VGIT相關係數升至零點二九五，顯示股債連動性增強，傳統股債平衡策略的對沖效果減弱。目前資產組合若過度配置債券，將偏離HRP模型對於高風險資產的偏好。在實質利率維持正值且景氣加速背景下，市場波動率風險集中於黃金，投資人應留意股債相關性上升帶來的資產組合風險分散能力下降，並關注通膨數據對實質利率的潛在衝擊。\n\n【各標的信號】\nVOO 🟡 維持 — 指標處於常態且市場氛圍偏多\nQQQ 🟡 維持 — 技術指標正常且風險偏好穩健\nGLD 🟡 維持 — 價格偏離度適中且順風支撐\nVGIT 🔴 減碼 — 風險偏好升溫不利避險資產\nTYD 🔴 減碼 — 市場風險偏好強勢壓抑債券\nGRID 🟡 維持 — 指標處於中性且市場環境順風",
+  "gemini_analysis": "AI 市場解讀\n\n【體制：RISK_ON · 信用正常 · 加速擴張 · 曲線正常】\n\n目前市場處於風險偏好環境，ISM加速擴張支撐股市，但資產間相關係數全面上升，降低了分散風險的效能。當前配置若偏向債券，將與HRP建議的九成股票配置大幅背離。總經主線下，股債相關性由零點二零五升至零點二九四，顯示通膨與利率預期正同步牽動股債波動。對散戶而言，當前體制意味著資產連動性增強，傳統股債平衡策略的避險效果減弱，高波動資產與總體經濟動能的相關性提升，需留意市場同步回檔的系統性風險。\n\n【各標的信號】\nVOO 🟡 維持 — 指標正常且市場風險偏好強勁\nQQQ 🟡 維持 — RSI未超買且市場風險偏好強勁\nGLD 🟡 維持 — 價格偏離度適中且市場風險偏好強勁\nVGIT 🔴 減碼 — 市場風險偏好強導致避險需求降\nTYD 🔴 減碼 — 市場風險偏好強導致債券槓桿受壓\nGRID 🟡 維持 — RSI處於中性且市場風險偏好強勁",
   "hrp_weights": {
     "VOO": 0.0832,
     "QQQ": 0.05,
-    "VGIT": 0.4333,
-    "TYD": 0.2888,
+    "VGIT": 0.5779,
+    "TYD": 0.1445,
     "GLD": 0.0636,
-    "GRID": 0.0811
+    "GRID": 0.0809
   },
   "dcc": {
     "tickers": [
@@ -310,35 +310,35 @@
       "GLD"
     ],
     "corr": {
-      "VOO_VGIT": 0.2954523059215066,
-      "VOO_GLD": 0.3793604191816512,
-      "VGIT_GLD": 0.45855016091343354
+      "VOO_VGIT": 0.29435406398743896,
+      "VOO_GLD": 0.3785624273030319,
+      "VGIT_GLD": 0.4573968934135914
     },
     "corr_30d_avg": {
-      "VOO_VGIT": 0.20567453859984275,
-      "VOO_GLD": 0.3169431884373128,
-      "VGIT_GLD": 0.3609545393852261
+      "VOO_VGIT": 0.2048040143026744,
+      "VOO_GLD": 0.3163164601571109,
+      "VGIT_GLD": 0.35999836858277345
     },
     "vol_annual": {
-      "VOO": 0.13206633362503484,
-      "VGIT": 0.04041510627885361,
-      "GLD": 0.2254651821562374
+      "VOO": 0.13205702061399113,
+      "VGIT": 0.0403877054522928,
+      "GLD": 0.22535607067456648
     },
     "hrp": {
-      "VOO": 0.9048257482809109,
-      "VGIT": 0.002962872736149847,
-      "GLD": 0.09221137898293927
+      "VOO": 0.9049611970916022,
+      "VGIT": 0.0029575431491388783,
+      "GLD": 0.09208125975925896
     },
     "risk_parity": {
-      "VOO": 0.21214360617857217,
-      "VGIT": 0.6718534064096172,
-      "GLD": 0.1160029874118106
+      "VOO": 0.2120292419374142,
+      "VGIT": 0.6719890020892614,
+      "GLD": 0.11598175597332439
     },
-    "dcc_alpha": 0.03300273431606355,
-    "dcc_beta": 0.9151354962984025
+    "dcc_alpha": 0.03289685363684899,
+    "dcc_beta": 0.9151054900551737
   },
   "tyd_timing": {
-    "score": 55,
-    "label": "可考慮 TYD"
+    "score": 45,
+    "label": "觀望"
   }
 }
