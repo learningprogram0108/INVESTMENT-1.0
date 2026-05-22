@@ -1,0 +1,146 @@
+{
+  "date": "2026-05-22",
+  "optimal_model": "模式A｜MV",
+  "weights": {
+    "模式A｜MV": {
+      "VOO": 0.223513,
+      "0050.TW": 0.476487,
+      "00875.TW": 0.05,
+      "GRID": 0.2,
+      "VGIT": 0.05
+    },
+    "模式B｜CVaR": {
+      "VOO": 0.204274,
+      "0050.TW": 0.495726,
+      "00875.TW": 0.05,
+      "GRID": 0.2,
+      "VGIT": 0.05
+    },
+    "模式C｜CDaR": {
+      "VOO": 0.2,
+      "0050.TW": 0.5,
+      "00875.TW": 0.05,
+      "GRID": 0.2,
+      "VGIT": 0.05
+    },
+    "模式D｜HRP": {
+      "VOO": 0.035774,
+      "0050.TW": 0.045989,
+      "00875.TW": 0.046862,
+      "GRID": 0.022705,
+      "VGIT": 0.84867
+    }
+  },
+  "metrics": [
+    {
+      "label": "模式A｜MV",
+      "ann_ret": 24.61,
+      "ann_vol": 14.28,
+      "sharpe": 1.443,
+      "cvar_ann": 30.6,
+      "mdd": -27.99
+    },
+    {
+      "label": "模式B｜CVaR",
+      "ann_ret": 24.77,
+      "ann_vol": 14.4,
+      "sharpe": 1.442,
+      "cvar_ann": 30.8,
+      "mdd": -28.1
+    },
+    {
+      "label": "模式C｜CDaR",
+      "ann_ret": 24.81,
+      "ann_vol": 14.43,
+      "sharpe": 1.442,
+      "cvar_ann": 30.85,
+      "mdd": -28.13
+    },
+    {
+      "label": "模式D｜HRP",
+      "ann_ret": 3.13,
+      "ann_vol": 4.65,
+      "sharpe": -0.187,
+      "cvar_ann": 10.6,
+      "mdd": -16.21
+    }
+  ],
+  "rebalance": {
+    "VOO": {
+      "current": 0.35,
+      "optimal": 0.22351330939991076,
+      "deviation": -0.1264866906000892,
+      "triggered": true,
+      "direction": "sell",
+      "semi_annual": false,
+      "action": "🔽 減持（立即）"
+    },
+    "0050.TW": {
+      "current": 0.25,
+      "optimal": 0.47648669098323165,
+      "deviation": 0.22648669098323165,
+      "triggered": true,
+      "direction": "buy",
+      "semi_annual": false,
+      "action": "🔼 增持（立即）"
+    },
+    "00875.TW": {
+      "current": 0.1,
+      "optimal": 0.05000000029971759,
+      "deviation": -0.04999999970028242,
+      "triggered": false,
+      "direction": "sell",
+      "semi_annual": false,
+      "action": "✅ 無需調整"
+    },
+    "GRID": {
+      "current": 0.15,
+      "optimal": 0.19999999893399956,
+      "deviation": 0.04999999893399956,
+      "triggered": false,
+      "direction": "buy",
+      "semi_annual": true,
+      "action": "✅ 無需調整"
+    },
+    "VGIT": {
+      "current": 0.15,
+      "optimal": 0.050000000383140425,
+      "deviation": -0.09999999961685957,
+      "triggered": true,
+      "direction": "sell",
+      "semi_annual": false,
+      "action": "🔽 減持（立即）"
+    }
+  },
+  "asset_bounds": {
+    "VOO": [
+      0.1,
+      0.5
+    ],
+    "0050.TW": [
+      0.1,
+      0.5
+    ],
+    "00875.TW": [
+      0.05,
+      0.2
+    ],
+    "GRID": [
+      0.05,
+      0.2
+    ],
+    "VGIT": [
+      0.05,
+      0.4
+    ]
+  },
+  "current_weights": {
+    "VOO": 0.35,
+    "0050.TW": 0.25,
+    "00875.TW": 0.1,
+    "GRID": 0.15,
+    "VGIT": 0.15
+  },
+  "rf_annual": 0.04,
+  "alpha": 0.05
+}
