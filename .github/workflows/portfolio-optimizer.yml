@@ -18,7 +18,7 @@ permissions:
 jobs:
   optimize:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -47,9 +47,9 @@ jobs:
           if [ -f "$JSON_SRC" ]; then
             mkdir -p docs/data
             cp "$JSON_SRC" docs/data/portfolio_optimization.json
-            echo "Copied $JSON_SRC → docs/data/portfolio_optimization.json"
+            echo "✅ Copied $JSON_SRC → docs/data/portfolio_optimization.json"
           else
-            echo "Warning: $JSON_SRC not found, skipping copy"
+            echo "⚠️  $JSON_SRC not found, skipping"
           fi
 
       - name: Commit and push report
@@ -57,5 +57,14 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add portfolio_reports/ docs/data/portfolio_optimization.json
-          git diff --cached --quiet || git commit -m "chore: update portfolio optimization report & dashboard data [skip ci]"
+          git diff --cached --quiet || \
+            git commit -m "chore: update portfolio optimization report & dashboard data [skip ci]"
           git push
+
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npm install -g wrangler --silent
+          wrangler pages deploy docs --project-name=investment-dashboard --commit-dirty=true

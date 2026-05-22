@@ -11,6 +11,10 @@ on:
         description: "觸發時間"
         required: false
         default: ""
+      rf_annual:
+        description: "年化無風險利率（凸最佳化用，預設 0.04）"
+        required: false
+        default: "0.04"
 
 permissions:
   contents: write
@@ -18,7 +22,7 @@ permissions:
 jobs:
   send-report:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
 
     steps:
       - name: Checkout
@@ -33,6 +37,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      # ── Step 1：夜盤報 + report.json ──────────────────────────────────
       - name: Run LINE Bot + generate report.json
         env:
           LINE_CHANNEL_TOKEN: ${{ secrets.LINE_CHANNEL_TOKEN }}
@@ -45,14 +50,39 @@ jobs:
           TRIGGERED_AT: ${{ inputs.triggered_at }}
         run: python main.py
 
-      - name: Commit and push report.json
+      # ── Step 2：凸最佳化 → portfolio_optimization.json ──────────────
+      - name: Run portfolio optimizer
+        run: |
+          python portfolio_optimizer.py \
+            --no-plot \
+            --start 2020-01-01 \
+            --rf "${{ inputs.rf_annual || '0.04' }}"
+
+      - name: Copy portfolio JSON to dashboard data
+        run: |
+          DATE=$(date '+%Y-%m-%d')
+          JSON_SRC="portfolio_reports/${DATE}/portfolio_optimization.json"
+          if [ -f "$JSON_SRC" ]; then
+            mkdir -p docs/data
+            cp "$JSON_SRC" docs/data/portfolio_optimization.json
+            echo "✅ Copied $JSON_SRC → docs/data/portfolio_optimization.json"
+          else
+            echo "⚠️  $JSON_SRC not found, skipping"
+          fi
+
+      # ── Step 3：一次性 commit 所有資料 ────────────────────────────────
+      - name: Commit and push dashboard data
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/data/report.json
-          git diff --cached --quiet || git commit -m "chore: update report.json [skip ci]"
+          git add docs/data/report.json \
+                  docs/data/portfolio_optimization.json \
+                  portfolio_reports/
+          git diff --cached --quiet || \
+            git commit -m "chore: update dashboard data [skip ci]"
           git push
 
+      # ── Step 4：部署到 Cloudflare Pages ──────────────────────────────
       - name: Deploy to Cloudflare Pages
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -61,6 +91,7 @@ jobs:
           npm install -g wrangler --silent
           wrangler pages deploy docs --project-name=investment-dashboard --commit-dirty=true
 
+      # ── 失敗通知 ──────────────────────────────────────────────────────
       - name: Notify on failure
         if: failure()
         env:
