@@ -52,6 +52,8 @@ jobs:
 
       # ── Step 2：凸最佳化 → portfolio_optimization.json ──────────────
       - name: Run portfolio optimizer
+        id: optimizer
+        continue-on-error: true          # 失敗不阻斷後續 commit/deploy
         run: |
           python portfolio_optimizer.py \
             --no-plot \
@@ -59,15 +61,16 @@ jobs:
             --rf "${{ inputs.rf_annual || '0.04' }}"
 
       - name: Copy portfolio JSON to dashboard data
+        if: steps.optimizer.outcome == 'success'
         run: |
           DATE=$(date '+%Y-%m-%d')
           JSON_SRC="portfolio_reports/${DATE}/portfolio_optimization.json"
           if [ -f "$JSON_SRC" ]; then
             mkdir -p docs/data
             cp "$JSON_SRC" docs/data/portfolio_optimization.json
-            echo "✅ Copied $JSON_SRC → docs/data/portfolio_optimization.json"
+            echo "Copied $JSON_SRC -> docs/data/portfolio_optimization.json"
           else
-            echo "⚠️  $JSON_SRC not found, skipping"
+            echo "Warning: $JSON_SRC not found, skipping"
           fi
 
       # ── Step 3：一次性 commit 所有資料 ────────────────────────────────
@@ -77,7 +80,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add docs/data/report.json \
                   docs/data/portfolio_optimization.json \
-                  portfolio_reports/
+                  portfolio_reports/ || true
           git diff --cached --quiet || \
             git commit -m "chore: update dashboard data [skip ci]"
           git push

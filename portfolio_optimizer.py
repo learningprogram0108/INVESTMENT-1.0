@@ -54,8 +54,16 @@ from scipy.stats import skew, kurtosis
 
 try:
     import yfinance as yf
+    # CI 環境下，main.py 可能已佔用預設快取目錄的 SQLite 鎖；
+    # 讓 portfolio_optimizer 使用獨立的快取目錄以避免 OperationalError。
+    _yf_cache = Path(os.environ.get("RUNNER_TEMP", os.path.expanduser("~"))) / ".yf_cache_opt"
+    _yf_cache.mkdir(parents=True, exist_ok=True)
+    try:
+        yf.set_tz_cache_location(str(_yf_cache))
+    except Exception:
+        pass  # 舊版 yfinance 不支援此方法，忽略
 except ImportError:
-    print("❌ 缺少 yfinance，請執行：pip install yfinance>=0.2.40")
+    print("Missing yfinance. Run: pip install yfinance>=0.2.40")
     sys.exit(1)
 
 try:
@@ -168,14 +176,37 @@ def download_prices(tickers: list, start: str, end: str) -> pd.DataFrame:
     print(f"  § 1  資料下載  [{start} → {end}]")
     print(f"{'='*58}")
 
-    raw = yf.download(
-        tickers,
-        start=start,
-        end=end,
-        auto_adjust=True,
-        progress=False,
-        threads=True,
-    )
+    # CI 環境下 yfinance SQLite 快取可能被前一個 step 鎖住，
+    # 改用 threads=False（序列下載）並加重試邏輯以避免 OperationalError。
+    import time as _time
+    import yfinance as _yf_retry
+
+    def _try_download(attempt: int) -> pd.DataFrame:
+        """單次下載嘗試，失敗回傳空 DataFrame。"""
+        try:
+            return _yf_retry.download(
+                tickers,
+                start=start,
+                end=end,
+                auto_adjust=True,
+                progress=False,
+                threads=False,   # 序列下載，避免 SQLite lock
+            )
+        except Exception as exc:
+            print(f"  [download attempt {attempt}] 失敗：{exc}", flush=True)
+            return pd.DataFrame()
+
+    raw = pd.DataFrame()
+    for _attempt in range(1, 4):          # 最多重試 3 次
+        raw = _try_download(_attempt)
+        if not raw.empty:
+            break
+        _time.sleep(5 * _attempt)         # 等 5s / 10s / 15s 再重試
+
+    if raw.empty:
+        raise RuntimeError(
+            "download_prices: 所有重試均失敗，請確認網路連線或標的代碼正確。"
+        )
 
     # yfinance 回傳 MultiIndex 欄位時取 Close 層
     if isinstance(raw.columns, pd.MultiIndex):
@@ -191,7 +222,13 @@ def download_prices(tickers: list, start: str, end: str) -> pd.DataFrame:
     prices   = prices.dropna()
     n_after  = len(prices)
 
-    print(f"  ✅ 有效共同交易日：{prices.index[0].date()} → {prices.index[-1].date()}")
+    if n_after == 0:
+        raise RuntimeError(
+            "download_prices: dropna 後沒有共同交易日，"
+            "請檢查標的代碼或縮短資料期間。"
+        )
+
+    print(f"  有效共同交易日：{prices.index[0].date()} -> {prices.index[-1].date()}")
     print(f"     總交易日：{n_after}（原始 {n_before}，丟棄 {n_before - n_after} 列含 NaN）")
     print(f"     各標的末收盤價：")
     for t in tickers:
