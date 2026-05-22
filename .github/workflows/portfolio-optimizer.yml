@@ -1,0 +1,49 @@
+name: 量化投資組合最佳化
+
+on:
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: "資料起始日期（預設 2020-01-01）"
+        required: false
+        default: "2020-01-01"
+      rf_annual:
+        description: "年化無風險利率（例：0.04）"
+        required: false
+        default: "0.04"
+
+permissions:
+  contents: write
+
+jobs:
+  optimize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run portfolio optimizer
+        run: |
+          python portfolio_optimizer.py \
+            --no-plot \
+            --start "${{ inputs.start_date }}" \
+            --rf "${{ inputs.rf_annual }}"
+
+      - name: Commit and push report
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add portfolio_reports/
+          git diff --cached --quiet || git commit -m "chore: update portfolio optimization report [skip ci]"
+          git push
