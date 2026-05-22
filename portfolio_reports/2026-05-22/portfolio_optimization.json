@@ -3,22 +3,22 @@
   "optimal_model": "模式A｜MV",
   "weights": {
     "模式A｜MV": {
-      "VOO": 0.217772,
-      "0050.TW": 0.482228,
-      "00875.TW": 0.05,
+      "VOO": 0.335878,
+      "0050.TW": 0.35,
+      "00875.TW": 0.064122,
       "GRID": 0.2,
       "VGIT": 0.05
     },
     "模式B｜CVaR": {
-      "VOO": 0.2,
-      "0050.TW": 0.5,
-      "00875.TW": 0.05,
+      "VOO": 0.32123,
+      "0050.TW": 0.35,
+      "00875.TW": 0.07877,
       "GRID": 0.2,
       "VGIT": 0.05
     },
     "模式C｜CDaR": {
-      "VOO": 0.2,
-      "0050.TW": 0.5,
+      "VOO": 0.35,
+      "0050.TW": 0.35,
       "00875.TW": 0.05,
       "GRID": 0.2,
       "VGIT": 0.05
@@ -28,33 +28,33 @@
       "0050.TW": 0.045805,
       "00875.TW": 0.046842,
       "GRID": 0.022714,
-      "VGIT": 0.84885
+      "VGIT": 0.848851
     }
   },
   "metrics": [
     {
       "label": "模式A｜MV",
-      "ann_ret": 24.94,
-      "ann_vol": 14.34,
-      "sharpe": 1.461,
-      "cvar_ann": 30.66,
-      "mdd": -28.02
+      "ann_ret": 23.64,
+      "ann_vol": 13.85,
+      "sharpe": 1.418,
+      "cvar_ann": 30.07,
+      "mdd": -27.24
     },
     {
       "label": "模式B｜CVaR",
-      "ann_ret": 25.1,
-      "ann_vol": 14.45,
-      "sharpe": 1.46,
-      "cvar_ann": 30.85,
-      "mdd": -28.13
+      "ann_ret": 23.53,
+      "ann_vol": 13.77,
+      "sharpe": 1.418,
+      "cvar_ann": 29.86,
+      "mdd": -27.17
     },
     {
       "label": "模式C｜CDaR",
-      "ann_ret": 25.1,
-      "ann_vol": 14.45,
-      "sharpe": 1.46,
-      "cvar_ann": 30.85,
-      "mdd": -28.13
+      "ann_ret": 23.75,
+      "ann_vol": 13.93,
+      "sharpe": 1.418,
+      "cvar_ann": 30.28,
+      "mdd": -27.31
     },
     {
       "label": "模式D｜HRP",
@@ -68,62 +68,72 @@
   "rebalance": {
     "VOO": {
       "current": 0.35,
-      "optimal": 0.21777170154681394,
-      "deviation": -0.13222829845318604,
-      "triggered": true,
+      "optimal": 0.33587756242668265,
+      "deviation": -0.014122437573317326,
+      "triggered": false,
       "direction": "sell",
       "semi_annual": false,
-      "action": "🔽 減持（立即）"
+      "action": "✅ 無需調整",
+      "friction_blocked": false,
+      "tyd_note": ""
     },
     "0050.TW": {
       "current": 0.25,
-      "optimal": 0.4822282989324966,
-      "deviation": 0.23222829893249658,
+      "optimal": 0.34999999980503155,
+      "deviation": 0.09999999980503155,
       "triggered": true,
       "direction": "buy",
       "semi_annual": false,
-      "action": "🔼 增持（立即）"
+      "action": "🔼 增持（立即）",
+      "friction_blocked": false,
+      "tyd_note": ""
     },
     "00875.TW": {
       "current": 0.1,
-      "optimal": 0.05000000029962812,
-      "deviation": -0.04999999970037189,
+      "optimal": 0.06412243700477253,
+      "deviation": -0.03587756299522747,
       "triggered": false,
       "direction": "sell",
       "semi_annual": false,
-      "action": "✅ 無需調整"
+      "action": "✅ 無需調整",
+      "friction_blocked": false,
+      "tyd_note": ""
     },
     "GRID": {
       "current": 0.15,
-      "optimal": 0.1999999988547287,
-      "deviation": 0.049999998854728694,
+      "optimal": 0.19999999946425712,
+      "deviation": 0.04999999946425712,
       "triggered": false,
       "direction": "buy",
       "semi_annual": true,
-      "action": "✅ 無需調整"
+      "action": "✅ 無需調整",
+      "friction_blocked": false,
+      "tyd_note": ""
     },
     "VGIT": {
       "current": 0.15,
-      "optimal": 0.0500000003663327,
-      "deviation": -0.09999999963366729,
+      "optimal": 0.050000001299256094,
+      "deviation": -0.0999999987007439,
       "triggered": true,
       "direction": "sell",
       "semi_annual": false,
-      "action": "🔽 減持（立即）"
+      "action": "🔽 減持（立即）",
+      "friction_blocked": false,
+      "tyd_note": ""
     }
   },
   "asset_bounds": {
     "VOO": [
-      0.1,
-      0.5
+      0.3,
+      0.55
     ],
     "0050.TW": [
-      0.1,
-      0.5
+      0.2,
+      0.35
     ],
     "00875.TW": [
       0.05,
-      0.2
+      0.15
     ],
     "GRID": [
       0.05,
@@ -131,7 +141,7 @@
     ],
     "VGIT": [
       0.05,
-      0.4
+      0.2
     ]
   },
   "current_weights": {
@@ -142,5 +152,11 @@
     "VGIT": 0.15
   },
   "rf_annual": 0.04,
-  "alpha": 0.05
+  "alpha": 0.05,
+  "sharpe_current": 1.325,
+  "sharpe_optimal": 1.418,
+  "sharpe_delta": 0.093,
+  "friction_blocked": false,
+  "tyd_algo_signal": false,
+  "turnover": 0.3
 }
