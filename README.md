@@ -97,15 +97,17 @@
 
 ### 凸最佳化引擎（portfolio_optimizer.py）
 
-| 類型 | 代碼 | 名稱 | 部位下限 | 部位上限 |
-|------|------|------|---------|---------|
-| 美股大盤 | VOO | Vanguard S&P 500 ETF | 10% | 50% |
-| 台灣大盤 | 0050.TW | 元大台灣50 | 10% | 50% |
-| 台灣高息 | 00875.TW | 國泰台灣低波動高息 | 5% | 20% |
-| 潔淨能源 | GRID | First Trust Smart Grid | 5% | 20% |
-| 美債中期 | VGIT | Vanguard Intermediate Treasury | 5% | 40% |
+| 類型 | 代碼 | 名稱 | 部位下限 | 部位上限 | 設計說明 |
+|------|------|------|---------|---------|---------|
+| 美股大盤 | VOO | Vanguard S&P 500 ETF | 30% | 55% | 核心護城河，確保底層美股曝險 |
+| 台灣大盤 | 0050.TW | 元大台灣50 | 20% | 35% | 拉住韁繩，防過度壓注單一市場 |
+| 台灣衛星 | 00875.TW | 國泰網路資安 | 5% | 15% | 衛星倉位，上限收緊 |
+| 潔淨能源 | GRID | First Trust Smart Grid | 5% | 20% | 半年手動下單，避免過度集中 |
+| 美債中期 | VGIT | Vanguard Intermediate Treasury | 5% | 20% | 儲蓄池 / TYD 觸發前緩衝 |
 
 > ⚠️ 0050.TW / 00875.TW 以 TWD 計價，VOO / GRID / VGIT 以 USD 計價。最佳化在未調整匯率的混合貨幣報酬序列上進行，最佳化結果反映幣別間的報酬與波動差異，使用時應留意外匯風險。
+>
+> **v2 邊界更新說明：** 舊版 0050.TW 上限 50%、VGIT 上限 40% 導致優化器在 2020–2026 樣本中出現「三體收斂」（MV/CVaR/CDaR 全部壓注 0050.TW 上限）與「HRP 盲目避險」（HRP 將 ~85% 配入美債）。新版邊界解決上述貪婪偏誤。
 
 ---
 
@@ -135,7 +137,7 @@ GLD / VGIT / TYD / GRID → 文字摘要提及 + Web 儀表板完整顯示
 | AI 市場解讀 | Gemini 兩層分析全文（純文字展示） |
 | HRP 配置圖 | Chart.js Doughnut + TYD 時機指示器 |
 | DCC-GARCH | VOO/VGIT/GLD 動態條件相關係數、年化波動率、配置對比 |
-| **凸最佳化配置** | MV / CVaR / CDaR / HRP 四模型 Tab 切換；Sharpe / 年化報酬 / 波動率 / MDD 指標列；資產配置長條圖；再平衡建議面板（當前 → 目標進度條 + 觸發標籤） |
+| **凸最佳化配置** | MV / CVaR / CDaR / HRP 四模型 Tab 切換；Sharpe / 年化報酬 / 波動率 / MDD 指標列；資產配置長條圖；再平衡建議面板（當前 → 目標進度條 + 觸發標籤 + 摩擦力靜態觀望標記） |
 | ETF 信號（6 張卡） | 🟢🟡🔴 信號燈 + delta（本次 vs 前次）+ 現價/Z-Score/RSI/Sharpe/MACD/DD |
 | 新聞 | 各 ETF 最新 3 則新聞（繁體中文標題 + publisher 來源 + 可點擊連結） |
 
@@ -154,7 +156,7 @@ GLD / VGIT / TYD / GRID → 文字摘要提及 + Web 儀表板完整顯示
 | 模式C｜CDaR | Classic | 最大化 Sharpe Ratio | CDaR（95% 條件最大回撤） |
 | 模式D｜HRP | Hierarchical | 風險平衡 | 方差（Ward 聚類 + Pearson 相依） |
 
-### 最佳化設定
+### 最佳化設定（v2）
 
 ```python
 TICKERS        = ["VOO", "0050.TW", "00875.TW", "GRID", "VGIT"]
@@ -165,36 +167,93 @@ CURRENT_WEIGHTS = {                  # 當前部位（再平衡基準）
     "VOO": 0.35, "0050.TW": 0.25, "00875.TW": 0.10,
     "GRID": 0.15, "VGIT": 0.15
 }
-REBAL_THRESHOLD = 0.05               # ±5% 觸發再平衡
+REBALANCE_THRESHOLD  = 0.05          # ±5% 觸發再平衡
+
+# ── v2 新增 ────────────────────────────────────────────────────
+HRP_LABEL            = "模式D｜HRP"  # HRP 排除於最優模型決策
+SHARPE_IMPROVEMENT_MIN = 0.05        # Δ Sharpe 低於此值 → 全部觸發標的靜態觀望
+TX_COST_USD          = 3.0           # GRID 美股下單手續費 USD（摩擦力估算）
+TX_COST_TWD          = 1.0           # 台股 DCA 手續費 TWD
+TYD_ALGO_SIGNAL      = False         # True = 將 VGIT 超出最低倉位的預算轉入 TYD
 ```
 
 ### 輸出
 
 | 輸出 | 路徑 | 說明 |
 |------|------|------|
-| Obsidian 報告 | `portfolio_reports/YYYY-MM-DD/*.md` | 含指標對比表、再平衡建議、免責聲明 |
+| Obsidian 報告 | `portfolio_reports/YYYY-MM-DD/*.md` | 含指標對比表、再平衡建議、HRP 免責聲明、摩擦力表格、TYD 信號 |
 | JSON 資料 | `portfolio_reports/YYYY-MM-DD/portfolio_optimization.json` | 儀表板資料來源 |
 | 儀表板資料 | `docs/data/portfolio_optimization.json` | 由 CI 自動複製 |
 
-### JSON 結構
+### JSON 結構（v2）
 
 ```json
 {
   "date": "2026-05-22",
   "optimal_model": "模式A｜MV",
   "weights": {
-    "模式A｜MV": { "VOO": 0.218, "0050.TW": 0.482, ... }
+    "模式A｜MV": { "VOO": 0.412, "0050.TW": 0.350, "00875.TW": 0.05, ... }
   },
   "metrics": [
     { "label": "模式A｜MV", "ann_ret": 24.94, "ann_vol": 14.34,
       "sharpe": 1.461, "cvar_ann": 30.66, "mdd": -28.02 }
   ],
   "rebalance": {
-    "VOO": { "current": 0.35, "optimal": 0.218, "deviation": -0.132,
-             "triggered": true, "direction": "sell", "action": "🔽 減持（立即）" }
-  }
+    "VOO": {
+      "current": 0.35, "optimal": 0.412, "deviation": 0.062,
+      "triggered": true, "direction": "buy",
+      "friction_blocked": false, "tyd_note": "",
+      "action": "🔼 增持（立即）"
+    }
+  },
+  "sharpe_current":   1.203,
+  "sharpe_optimal":   1.461,
+  "sharpe_delta":     0.258,
+  "friction_blocked": false,
+  "tyd_algo_signal":  false,
+  "turnover":         0.142
 }
 ```
+
+> `friction_blocked`：若 `sharpe_delta < 0.05`，所有觸發標的的 `action` 改為「靜態觀望」，避免手續費吞噬改善幅度。  
+> `tyd_algo_signal`：設為 `true` 時，VGIT 超出最低倉位的資金將在報告中提示轉入 TYD 做波段槓桿。  
+> `optimal_model` 永遠不會是 `"模式D｜HRP"`（HRP 為啟發式演算法，僅供基準參考）。
+
+### v2 重構：防貪婪偏誤與摩擦力過濾
+
+#### 問題背景
+
+舊版優化器在 2020–2026 樣本資料下存在兩個已知缺陷：
+
+| 缺陷 | 現象 | 根因 |
+|------|------|------|
+| 三體收斂 | MV/CVaR/CDaR 三模式均將 0050.TW 推至 50% 上限 | 台股樣本期報酬優異，優化器貪婪集中 |
+| HRP 盲目避險 | HRP 將 ~85% 配入 VGIT | 無報酬約束，低波動資產自然主導 |
+
+#### 六項修改
+
+| 項目 | 變更前 | 變更後 |
+|------|-------|-------|
+| VOO 邊界 | 10%–50% | **30%–55%**（確保核心美股護城河） |
+| 0050.TW 邊界 | 10%–50% | **20%–35%**（拉住韁繩） |
+| 00875.TW 邊界 | 5%–20% | **5%–15%**（衛星上限收緊） |
+| VGIT 邊界 | 5%–40% | **5%–20%**（儲蓄池，不過度擴張） |
+| HRP 在最優決策中 | 可能被選為 optimal_model | **永遠排除**，僅基準參考 |
+| 摩擦力過濾 | 不存在 | **Δ Sharpe < 0.05 → 全部靜態觀望** |
+
+#### TYD 演算法旗標
+
+`TYD_ALGO_SIGNAL = True` 可手動觸發戰術美債信號：VGIT 最低倉位（5%）以外的預算將在報告中標記為「轉入 TYD 進行波段槓桿抄底」。正常狀態維持 `False`，VGIT 遵循凸最佳化目標配置。
+
+#### Obsidian 報告新增段落
+
+| 新段落 | 說明 |
+|--------|------|
+| HRP 免責聲明 callout | 提醒 HRP 權重不可作為再平衡依據 |
+| §4.5 摩擦力過濾表格 | 顯示當前夏普、最優夏普、Δ、是否靜態觀望、週轉率、手續費估算 |
+| §4.6 TYD 戰術信號 callout | 顯示 TYD_ALGO_SIGNAL 狀態與 VGIT → TYD 轉換提示 |
+
+---
 
 ### CLI 用法
 
