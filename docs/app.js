@@ -12,6 +12,16 @@
     GRID: '#E24B4A',
   };
 
+  const OPT_COLORS = {
+    'VOO':      '#1D9E75',
+    '0050.TW':  '#378ADD',
+    '00875.TW': '#EF9F27',
+    'GRID':     '#E24B4A',
+    'VGIT':     '#9B59B6',
+  };
+
+  let _optChart = null;
+
   const SIGNAL_CLASS = {
     '強力買入': 'badge-strong-buy',
     '買  入':   'badge-buy',
@@ -362,10 +372,184 @@
     container.innerHTML = hasNews ? html : '<p class="loading-msg">暫無新聞標題</p>';
   }
 
+  // ── Optimization Card ──
+  function renderOptimization(optData) {
+    if (!optData) return;
+
+    const models  = Object.keys(optData.weights || {});
+    const optimal = optData.optimal_model || models[0];
+    const metrics = optData.metrics || [];
+    const rebal   = optData.rebalance || {};
+
+    if (!models.length) return;
+
+    let activeModel = optimal;
+
+    // Build metric lookup
+    const metricMap = {};
+    metrics.forEach(m => { metricMap[m.label] = m; });
+
+    // ── Tabs ──
+    const tabsEl = el('opt-tabs');
+    tabsEl.innerHTML = '';
+    models.forEach(model => {
+      const btn = document.createElement('button');
+      btn.className = 'opt-tab' +
+        (model === optimal      ? ' optimal' : '') +
+        (model === activeModel  ? ' active'  : '');
+      btn.textContent = model;
+      btn.addEventListener('click', () => {
+        activeModel = model;
+        tabsEl.querySelectorAll('.opt-tab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        updateMetrics(model);
+        updateChart(model);
+      });
+      tabsEl.appendChild(btn);
+    });
+
+    // ── Metrics Row ──
+    function updateMetrics(model) {
+      const m   = metricMap[model] || {};
+      const row = el('opt-metrics-row');
+      row.innerHTML = [
+        {
+          label: 'Sharpe',
+          val:   m.sharpe   != null ? fmt(m.sharpe, 3) : 'N/A',
+          cls:   m.sharpe   >  1    ? 'c-grn' : m.sharpe > 0 ? 'c-yel' : 'c-red',
+        },
+        {
+          label: '年化報酬',
+          val:   m.ann_ret  != null ? fmt(m.ann_ret,  2) + '%' : 'N/A',
+          cls:   m.ann_ret  > 10    ? 'c-grn' : m.ann_ret > 0 ? 'c-yel' : 'c-red',
+        },
+        {
+          label: '年化波動率',
+          val:   m.ann_vol  != null ? fmt(m.ann_vol,  2) + '%' : 'N/A',
+          cls:   m.ann_vol  < 12    ? 'c-grn' : m.ann_vol < 20 ? 'c-yel' : 'c-red',
+        },
+        {
+          label: 'Max DD',
+          val:   m.mdd      != null ? fmt(m.mdd,      2) + '%' : 'N/A',
+          cls:   m.mdd      > -10   ? 'c-grn' : m.mdd > -20 ? 'c-yel' : 'c-red',
+        },
+      ].map(item =>
+        `<div class="opt-metric-box">
+          <div class="opt-metric-label">${item.label}</div>
+          <div class="opt-metric-val ${item.cls}">${item.val}</div>
+        </div>`
+      ).join('');
+    }
+
+    // ── Bar Chart ──
+    function updateChart(model) {
+      const w       = optData.weights[model] || {};
+      const tickers = Object.keys(w);
+      const vals    = tickers.map(t => +(w[t] * 100).toFixed(2));
+      const colors  = tickers.map(t => OPT_COLORS[t] || '#888');
+
+      if (_optChart) {
+        _optChart.data.labels                      = tickers;
+        _optChart.data.datasets[0].data            = vals;
+        _optChart.data.datasets[0].backgroundColor = colors;
+        _optChart.update();
+      } else {
+        const ctx = document.getElementById('optChart').getContext('2d');
+        _optChart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: tickers,
+            datasets: [{
+              data:            vals,
+              backgroundColor: colors,
+              borderRadius:    4,
+              barThickness:    22,
+            }],
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend:  { display: false },
+              tooltip: { callbacks: { label: ctx => ' ' + ctx.parsed.x.toFixed(1) + '%' } },
+            },
+            scales: {
+              x: {
+                min:   0,
+                max:   65,
+                ticks: { callback: v => v + '%', color: '#aaa' },
+                grid:  { color: 'rgba(255,255,255,0.06)' },
+              },
+              y: {
+                ticks: { color: '#ccc', font: { size: 13 } },
+                grid:  { display: false },
+              },
+            },
+          },
+        });
+      }
+    }
+
+    // ── Rebalancing Panel ──
+    function renderRebal() {
+      const rebalEl = el('opt-rebal');
+      const entries = Object.entries(rebal);
+      if (!entries.length) {
+        rebalEl.innerHTML = '<p class="loading-msg">無再平衡資料</p>';
+        return;
+      }
+
+      let html = '<div class="rebal-title">再平衡建議</div>';
+      entries.forEach(([ticker, r]) => {
+        const curPct = (r.current * 100).toFixed(1);
+        const optPct = (r.optimal * 100).toFixed(1);
+        const sigClass = r.direction === 'buy'  ? 'sig-buy'
+                       : r.direction === 'sell' ? 'sig-sell'
+                       : 'sig-hold';
+        const action = r.action ||
+          (r.triggered
+            ? (r.direction === 'buy' ? '🔼 增持' : '🔽 減持')
+            : '⏸ 觀望');
+        const color  = OPT_COLORS[ticker] || '#888';
+        const maxBar = 65; // matches chart x-axis max
+
+        html += `<div class="rebal-row${r.triggered ? ' triggered' : ''}">
+          <div class="rebal-ticker" style="color:${color}">${ticker}</div>
+          <div class="rebal-bar-wrap">
+            <div class="rebal-bar-cur"
+              style="width:${Math.min(parseFloat(curPct), maxBar) / maxBar * 100}%;background:${color}66"
+              title="當前 ${curPct}%"></div>
+            <div class="rebal-bar-opt"
+              style="width:${Math.min(parseFloat(optPct), maxBar) / maxBar * 100}%;background:${color}"
+              title="目標 ${optPct}%"></div>
+          </div>
+          <div class="rebal-pct">${curPct}% → ${optPct}%</div>
+          <div class="rebal-signal ${sigClass}">${action}</div>
+        </div>`;
+      });
+
+      if (optData.date) {
+        html += `<p class="opt-date">最佳化日期：${optData.date}</p>`;
+      }
+      rebalEl.innerHTML = html;
+    }
+
+    // Kick everything off
+    updateMetrics(activeModel);
+    updateChart(activeModel);
+    renderRebal();
+  }
+
   // ── Bootstrap ──
   async function init() {
+    const ts = '?t=' + Date.now();
     try {
-      const resp = await fetch(DATA_URL + '?t=' + Date.now());
+      const [resp, optResp] = await Promise.all([
+        fetch(DATA_URL + ts),
+        fetch('data/portfolio_optimization.json' + ts).catch(() => null),
+      ]);
+
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
 
@@ -379,6 +563,18 @@
       renderDCC(data.dcc);
       renderETFCards(data.etf_signals, data.signal_lights);
       renderNews(data.etf_signals);
+
+      // Optimization card (graceful if file missing)
+      if (optResp && optResp.ok) {
+        const optData = await optResp.json();
+        renderOptimization(optData);
+      } else {
+        const optSection = el('opt-section');
+        if (optSection) {
+          optSection.querySelector('#opt-tabs').innerHTML =
+            '<p class="loading-msg">最佳化資料尚未生成（請執行 GitHub Actions workflow）</p>';
+        }
+      }
     } catch (err) {
       console.error('[app]', err);
       el('etf-grid').innerHTML = `<p class="error-msg">資料載入失敗：${err.message}<br>請確認 data/report.json 已生成。</p>`;
