@@ -401,9 +401,11 @@
 
   // ── ADS-B 軍機動態 ──
   const ADSB_REGIONS = [
-    { name: '台灣海峽', sw_lat: 21, sw_lon: 118, ne_lat: 27, ne_lon: 123 },
-    { name: '南海',     sw_lat: 10, sw_lon: 108, ne_lat: 22, ne_lon: 120 },
-    { name: '東海',     sw_lat: 27, sw_lon: 120, ne_lat: 34, ne_lon: 130 },
+    { name: '台灣海峽',   sw_lat: 21, sw_lon: 118, ne_lat: 27, ne_lon: 123 },
+    { name: '南海',       sw_lat: 10, sw_lon: 108, ne_lat: 22, ne_lon: 120 },
+    { name: '東海',       sw_lat: 27, sw_lon: 120, ne_lat: 34, ne_lon: 130 },
+    { name: '紅海/亞丁灣', sw_lat: 10, sw_lon: 37,  ne_lat: 24, ne_lon: 50  },
+    { name: '烏克蘭/黑海', sw_lat: 43, sw_lon: 28,  ne_lat: 52, ne_lon: 40  },
   ];
 
   async function fetchAndRenderADSB() {
@@ -430,7 +432,7 @@
       container.innerHTML = `
         <div class="adsb-count">偵測到 <strong>${allFlights.length}</strong> 架飛機</div>
         <div class="adsb-list">
-          ${allFlights.slice(0, 15).map(f => `
+          ${allFlights.slice(0, 20).map(f => `
             <div class="adsb-row">
               <span class="adsb-callsign">${f.callsign || f.icao24 || '--'}</span>
               <span class="adsb-region">${f._region}</span>
@@ -445,8 +447,9 @@
 
   // ── AIS 艦船追蹤 ──
   const AIS_REGIONS = [
-    { name: '台灣海峽', sw_lat: 21, sw_lon: 118, ne_lat: 27, ne_lon: 123 },
-    { name: '南海',     sw_lat: 10, sw_lon: 108, ne_lat: 22, ne_lon: 120 },
+    { name: '台灣海峽',     sw_lat: 21,   sw_lon: 118,  ne_lat: 27,   ne_lon: 123 },
+    { name: '南海',         sw_lat: 10,   sw_lon: 108,  ne_lat: 22,   ne_lon: 120 },
+    { name: '霍爾木茲海峽', sw_lat: 24.0, sw_lon: 55.5, ne_lat: 27.5, ne_lon: 60.0 },
   ];
 
   async function fetchAndRenderAIS() {
