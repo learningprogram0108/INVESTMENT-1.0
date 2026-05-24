@@ -6,6 +6,8 @@
   // ── World Monitor API（自行部署後填入 Vercel URL）──
   // Fork: https://github.com/koala73/worldmonitor → 部署到自己的 Vercel → 填入下方 URL
   const WM_URL = 'https://worldmonitor-six-indol.vercel.app';
+  // Enterprise API Key — 需同步設定 Vercel 環境變數 WORLDMONITOR_VALID_KEYS
+  const WM_KEY = 'wm_96715a700309028c9bdc0a4fa8363bda1f16dbc49315d401';
 
   const ETF_COLORS = {
     VOO:  '#1D9E75',
@@ -367,7 +369,9 @@
       return;
     }
     try {
-      const res = await fetch(`${WM_URL}/api/news/v1/list-feed-digest`);
+      const res = await fetch(`${WM_URL}/api/news/v1/list-feed-digest`, {
+        headers: { 'X-WorldMonitor-Key': WM_KEY },
+      });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const items = await res.json();
       const top = (Array.isArray(items) ? items : [])
@@ -416,7 +420,9 @@
     }
     try {
       const results = await Promise.all(ADSB_REGIONS.map(r =>
-        fetch(`${WM_URL}/api/aviation/v1/track-aircraft?sw_lat=${r.sw_lat}&sw_lon=${r.sw_lon}&ne_lat=${r.ne_lat}&ne_lon=${r.ne_lon}`)
+        fetch(`${WM_URL}/api/aviation/v1/track-aircraft?sw_lat=${r.sw_lat}&sw_lon=${r.sw_lon}&ne_lat=${r.ne_lat}&ne_lon=${r.ne_lon}`, {
+          headers: { 'X-WorldMonitor-Key': WM_KEY },
+        })
           .then(res => res.ok ? res.json() : [])
           .then(flights => (Array.isArray(flights) ? flights : []).map(f => ({ ...f, _region: r.name })))
           .catch(() => [])
@@ -460,7 +466,9 @@
     }
     try {
       const results = await Promise.all(AIS_REGIONS.map(r =>
-        fetch(`${WM_URL}/api/maritime/v1/get-vessel-snapshot?sw_lat=${r.sw_lat}&sw_lon=${r.sw_lon}&ne_lat=${r.ne_lat}&ne_lon=${r.ne_lon}&include_candidates=true&include_tankers=true`)
+        fetch(`${WM_URL}/api/maritime/v1/get-vessel-snapshot?sw_lat=${r.sw_lat}&sw_lon=${r.sw_lon}&ne_lat=${r.ne_lat}&ne_lon=${r.ne_lon}&include_candidates=true&include_tankers=true`, {
+          headers: { 'X-WorldMonitor-Key': WM_KEY },
+        })
           .then(res => res.ok ? res.json() : null)
           .catch(() => null)
       ));
