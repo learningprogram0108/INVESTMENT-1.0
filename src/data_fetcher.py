@@ -3,11 +3,12 @@
 Primary  : OpenBB SDK (yfinance / fred / alpha_vantage providers)
 Fallback : 直接呼叫各 API（保留可靠性）
 
-四種資料類型全覆蓋：
+三種資料類型全覆蓋：
   1. ETF/股票歷史價格  → obb.equity.price.historical()
   2. 總經指標 (FRED)   → obb.economy.fred_series()
-  3. 財務新聞標題      → obb.equity.news()
-  4. 殖利率 / 利差     → obb.fixedincome.government.treasury_rates() + FRED BAMLH0A0HYM2
+  3. 殖利率 / 利差     → obb.fixedincome.government.treasury_rates() + FRED BAMLH0A0HYM2
+
+NOTE: 新聞功能已移除。前端改由 worldmonitor API（瀏覽器端直接 fetch）提供即時新聞。
 """
 
 import time
@@ -166,47 +167,7 @@ def fetch_fred(series_id: str, api_key: str, limit: int = 24) -> list:
     return _fred_direct(series_id, api_key, limit)
 
 
-# ── ③ 財務新聞標題 ────────────────────────────────────────────────────────────
-
-def yahoo_news_headlines(symbol: str, limit: int = 5) -> list:
-    """
-    OpenBB (yfinance) → equity.news → list[dict{"title","url","publisher","summary"}]
-    Fallback: 直接呼叫 Yahoo Finance Search API
-    """
-    obb = _get_obb()
-    if obb:
-        try:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                result = obb.equity.news(symbol, limit=limit, provider="yfinance")
-            df = result.to_dataframe()
-            items = []
-            title_col     = next((c for c in ("title", "headline", "text") if c in df.columns), None)
-            url_col       = next((c for c in ("url", "link", "article_url") if c in df.columns), None)
-            publisher_col = next((c for c in ("source", "publisher", "provider_name", "author") if c in df.columns), None)
-            summary_col   = next((c for c in ("description", "summary", "body", "content") if c in df.columns), None)
-            if title_col:
-                rows = df.head(limit)
-                for _, row in rows.iterrows():
-                    t = str(row[title_col]) if pd.notna(row[title_col]) else ""
-                    if not t:
-                        continue
-                    items.append({
-                        "title":     t,
-                        "url":       str(row[url_col])       if url_col       and pd.notna(row[url_col])       else "",
-                        "publisher": str(row[publisher_col]) if publisher_col and pd.notna(row[publisher_col]) else "",
-                        "summary":   str(row[summary_col])   if summary_col   and pd.notna(row[summary_col])   else "",
-                    })
-            if items:
-                print(f"  [OBB/News] {symbol} {len(items)} 則")
-                return items
-        except Exception as e:
-            print(f"  [OBB/News] {symbol}: {e}，fallback")
-
-    return _yahoo_news_direct(symbol, limit)
-
-
-# ── ④ 殖利率 / 利差 ────────────────────────────────────────────────────────────
+# ── ③ 殖利率 / 利差 ────────────────────────────────────────────────────────────
 
 def fetch_treasury_av(av_key) -> tuple[float, float]:
     """
@@ -460,33 +421,3 @@ def _treasury_direct(av_key) -> tuple[float, float]:
     return us10y, us02y
 
 
-def _yahoo_news_direct(symbol: str, limit: int = 5) -> list:
-    """Yahoo Finance Search API 直接呼叫 → list[dict{"title","url","publisher","summary"}]"""
-    url = "https://query1.finance.yahoo.com/v1/finance/search"
-    params = {"q": symbol, "newsCount": limit, "enableFuzzyQuery": False, "quotesCount": 0}
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "application/json",
-    }
-    try:
-        r = requests.get(url, params=params, headers=headers, timeout=10)
-        if r.status_code != 200:
-            return []
-        data = r.json()
-        items = []
-        for n in data.get("news", [])[:limit]:
-            title = n.get("title", "")
-            if not title:
-                continue
-            items.append({
-                "title":     title,
-                "url":       n.get("link", ""),
-                "publisher": n.get("publisher", ""),   # e.g. "Reuters", "Bloomberg"
-                "summary":   n.get("summary", ""),     # 通常為空，但保留以防未來 API 更新
-            })
-        if items:
-            print(f"  [News direct] {symbol} {len(items)} 則")
-        return items
-    except Exception as e:
-        print(f"  [News direct] {symbol}: {e}")
-        return []

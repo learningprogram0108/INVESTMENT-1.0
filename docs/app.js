@@ -3,6 +3,10 @@
 
   const DATA_URL = 'data/report.json';
 
+  // ── World Monitor API（自行部署後填入 Vercel URL）──
+  // Fork: https://github.com/koala73/worldmonitor → 部署到自己的 Vercel → 填入下方 URL
+  const WM_URL = '';
+
   const ETF_COLORS = {
     VOO:  '#1D9E75',
     QQQ:  '#378ADD',
@@ -355,34 +359,135 @@
       `<span class="tyd-score" style="color:${color}">${score}/100</span>`;
   }
 
-  // ── News ──
-  function renderNews(signals) {
-    const container = el('news-container');
-    let html = '';
-    let hasNews = false;
-    (signals || []).forEach(sig => {
-      if (!sig.news_headlines || !sig.news_headlines.length) return;
-      hasNews = true;
-      const color = ETF_COLORS[sig.ticker] || '#888';
-      html += `<div class="news-group">
-        <div class="news-group-title" style="color:${color}">${sig.ticker} — ${sig.name}</div>
-        <ul>${sig.news_headlines.map(h => {
-          let display, url;
-          if (typeof h === 'object' && h !== null) {
-            display = h.title_zh || h.title || '';
-            url     = h.url || '';
-          } else {
-            display = String(h);
-            url     = '';
-          }
-          const tag = url
-            ? `<a href="${url}" target="_blank" rel="noopener noreferrer">${display}</a>`
-            : `<span>${display}</span>`;
-          return `<li>${tag}</li>`;
-        }).join('')}</ul>
-      </div>`;
-    });
-    container.innerHTML = hasNews ? html : '<p class="loading-msg">暫無新聞標題</p>';
+  // ── 全球即時新聞（World Monitor RSS/OSINT）──
+  async function fetchAndRenderWMNews() {
+    const container = el('wm-news-container');
+    if (!WM_URL) {
+      container.innerHTML = '<p class="loading-msg">請先部署 worldmonitor 並填入 WM_URL</p>';
+      return;
+    }
+    try {
+      const res = await fetch(`${WM_URL}/api/news/v1/list-feed-digest`);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const items = await res.json();
+      const top = (Array.isArray(items) ? items : [])
+        .sort((a, b) => (b.importance_score || 0) - (a.importance_score || 0))
+        .slice(0, 12);
+      if (!top.length) {
+        container.innerHTML = '<p class="loading-msg">暫無新聞資料</p>';
+        return;
+      }
+      container.innerHTML = top.map(n => {
+        const age    = Math.round((Date.now() - (n.published_at || 0)) / 60000);
+        const ageStr = age < 60 ? `${age}m ago` : `${Math.round(age / 60)}h ago`;
+        const score  = n.importance_score != null
+          ? `<span class="wm-score">${n.importance_score}</span>` : '';
+        return `
+          <div class="wm-news-item${n.is_alert ? ' wm-alert' : ''}">
+            <div class="wm-news-meta">
+              <span class="wm-source">${n.source || ''}</span>
+              ${n.location_name ? `<span class="wm-loc">📍${n.location_name}</span>` : ''}
+              <span class="wm-age">${ageStr}</span>
+              ${score}
+            </div>
+            <a class="wm-news-title" href="${n.link || '#'}" target="_blank" rel="noopener noreferrer">${n.title || ''}</a>
+            ${n.snippet ? `<p class="wm-snippet">${n.snippet}</p>` : ''}
+          </div>`;
+      }).join('');
+    } catch (e) {
+      container.innerHTML = `<p class="loading-msg">新聞載入失敗：${e.message}</p>`;
+    }
+  }
+
+  // ── ADS-B 軍機動態 ──
+  const ADSB_REGIONS = [
+    { name: '台灣海峽', sw_lat: 21, sw_lon: 118, ne_lat: 27, ne_lon: 123 },
+    { name: '南海',     sw_lat: 10, sw_lon: 108, ne_lat: 22, ne_lon: 120 },
+    { name: '東海',     sw_lat: 27, sw_lon: 120, ne_lat: 34, ne_lon: 130 },
+  ];
+
+  async function fetchAndRenderADSB() {
+    const container = el('adsb-container');
+    if (!WM_URL) {
+      container.innerHTML = '<p class="loading-msg">請先部署 worldmonitor 並填入 WM_URL</p>';
+      return;
+    }
+    try {
+      const results = await Promise.all(ADSB_REGIONS.map(r =>
+        fetch(`${WM_URL}/api/aviation/v1/track-aircraft?sw_lat=${r.sw_lat}&sw_lon=${r.sw_lon}&ne_lat=${r.ne_lat}&ne_lon=${r.ne_lon}`)
+          .then(res => res.ok ? res.json() : [])
+          .then(flights => (Array.isArray(flights) ? flights : []).map(f => ({ ...f, _region: r.name })))
+          .catch(() => [])
+      ));
+      const allFlights = results.flat()
+        .filter(f => !f.on_ground)
+        .sort((a, b) => (b.altitude_m || 0) - (a.altitude_m || 0));
+
+      if (!allFlights.length) {
+        container.innerHTML = '<p class="loading-msg">目前監控區域無異常飛行活動</p>';
+        return;
+      }
+      container.innerHTML = `
+        <div class="adsb-count">偵測到 <strong>${allFlights.length}</strong> 架飛機</div>
+        <div class="adsb-list">
+          ${allFlights.slice(0, 15).map(f => `
+            <div class="adsb-row">
+              <span class="adsb-callsign">${f.callsign || f.icao24 || '--'}</span>
+              <span class="adsb-region">${f._region}</span>
+              <span class="adsb-alt">${Math.round((f.altitude_m || 0) / 30.48) * 100} ft</span>
+              <span class="adsb-spd">${Math.round(f.ground_speed_kts || 0)} kts</span>
+            </div>`).join('')}
+        </div>`;
+    } catch (e) {
+      container.innerHTML = `<p class="loading-msg">ADS-B 載入失敗：${e.message}</p>`;
+    }
+  }
+
+  // ── AIS 艦船追蹤 ──
+  const AIS_REGIONS = [
+    { name: '台灣海峽', sw_lat: 21, sw_lon: 118, ne_lat: 27, ne_lon: 123 },
+    { name: '南海',     sw_lat: 10, sw_lon: 108, ne_lat: 22, ne_lon: 120 },
+  ];
+
+  async function fetchAndRenderAIS() {
+    const container = el('ais-container');
+    if (!WM_URL) {
+      container.innerHTML = '<p class="loading-msg">請先部署 worldmonitor 並填入 WM_URL</p>';
+      return;
+    }
+    try {
+      const results = await Promise.all(AIS_REGIONS.map(r =>
+        fetch(`${WM_URL}/api/maritime/v1/get-vessel-snapshot?sw_lat=${r.sw_lat}&sw_lon=${r.sw_lon}&ne_lat=${r.ne_lat}&ne_lon=${r.ne_lon}&include_candidates=true&include_tankers=true`)
+          .then(res => res.ok ? res.json() : null)
+          .catch(() => null)
+      ));
+
+      const html = results.map((snap, i) => {
+        if (!snap) return '';
+        const region      = AIS_REGIONS[i].name;
+        const candidates  = snap.candidate_reports || [];
+        const disruptions = snap.disruptions || [];
+        return `
+          <div class="ais-region">
+            <div class="ais-region-title">
+              ${region}
+              <span class="ais-count">${candidates.length} 艘</span>
+              ${disruptions.length ? `<span class="ais-disruption">⚠ ${disruptions.length} 異常</span>` : ''}
+            </div>
+            <div class="ais-list">
+              ${candidates.slice(0, 8).map(v => `
+                <div class="ais-row">
+                  <span class="ais-name">${v.name || v.mmsi || '--'}</span>
+                  <span class="ais-type">${v.ship_type || '--'}</span>
+                  <span class="ais-spd">${(v.speed || 0).toFixed(1)} kn</span>
+                </div>`).join('')}
+            </div>
+          </div>`;
+      }).join('');
+      container.innerHTML = html || '<p class="loading-msg">暫無艦船資料</p>';
+    } catch (e) {
+      container.innerHTML = `<p class="loading-msg">AIS 載入失敗：${e.message}</p>`;
+    }
   }
 
   // ── Optimization Card ──
@@ -576,7 +681,11 @@
       renderTYD(data);
       renderDCC(data.dcc);
       renderETFCards(data.etf_signals, data.signal_lights);
-      renderNews(data.etf_signals);
+
+      // World Monitor（非阻塞，獨立 fetch，不影響主流程）
+      fetchAndRenderWMNews();
+      fetchAndRenderADSB();
+      fetchAndRenderAIS();
 
       // 每日金句（graceful if file missing）
       if (quoteResp && quoteResp.ok) {

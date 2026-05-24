@@ -28,8 +28,8 @@ from src.line_builder import (
     build_etf_card,
     send_line_messages,
 )
-from src.gemini_summary import build_gemini_summary, translate_headlines_zh
-from src.data_fetcher import yahoo_news_headlines, setup_openbb_credentials
+from src.gemini_summary import build_gemini_summary
+from src.data_fetcher import setup_openbb_credentials
 from src.dcc_garch import run_dcc_analysis, format_dcc_for_prompt
 
 REPORT_PATH = pathlib.Path("docs/data/report.json")
@@ -38,17 +38,6 @@ REPORT_PATH = pathlib.Path("docs/data/report.json")
 # ─────────────────────────────────────────────
 # 輔助函式
 # ─────────────────────────────────────────────
-
-def _fetch_news(etf_signals: list) -> dict:
-    """為每個 ETF 抓取最新新聞（list[dict{"title","url","publisher","summary"}]）"""
-    news_by_ticker: dict = {}
-    for sig in etf_signals:
-        if not sig.news_headlines:
-            headlines = yahoo_news_headlines(sig.ticker, limit=3)
-            sig.news_headlines = headlines
-        news_by_ticker[sig.ticker] = sig.news_headlines
-    return news_by_ticker
-
 
 def _load_prev_signal_lights() -> dict:
     """
@@ -113,7 +102,6 @@ def _build_report_json(
             "cycle_phase":         d["cycle_phase"],
             "fund_multiplier":     d["fund_multiplier"],
             "multiplier_mode":     d["multiplier_mode"],
-            "news_headlines":      d["news_headlines"],
         }
 
     return {
@@ -206,9 +194,6 @@ def main():
     else:
         print("  [TailRisk] 無觸發警示")
 
-    # ── 新聞抓取 ────────────────────────────────────────────────────────
-    news_by_ticker = _fetch_news(etf_signals)
-
     # ── DCC-GARCH 分析（VOO / VGIT / GLD）─────────────────────────────
     dcc_result = None
     dcc_text   = ""
@@ -219,17 +204,6 @@ def main():
         print(f"  [DCC] 完成：α={dcc_result['dcc_alpha']:.4f} β={dcc_result['dcc_beta']:.4f}")
     except Exception as e:
         print(f"  [DCC] 分析失敗（{e}），略過")
-
-    # ── 繁中新聞翻譯（Gemini 批量，一次 API 呼叫）──────────────────────
-    if gemini_key and news_by_ticker:
-        print("  [Translate] 翻譯新聞標題...")
-        try:
-            translated = translate_headlines_zh(news_by_ticker, gemini_key)
-            for sig in etf_signals:
-                if sig.ticker in translated:
-                    sig.news_headlines = translated[sig.ticker]
-        except Exception as e:
-            print(f"  [Translate] 翻譯失敗（{e}），略過")
 
     # ── Gemini 兩層分析（體制敘事 + ETF 逐行）──────────────────────────
     gemini_msg = build_gemini_summary(
