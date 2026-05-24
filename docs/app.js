@@ -5,7 +5,7 @@
 
   // ── World Monitor API（自行部署後填入 Vercel URL）──
   // Fork: https://github.com/koala73/worldmonitor → 部署到自己的 Vercel → 填入下方 URL
-  const WM_URL = '';
+  const WM_URL = 'https://worldmonitor-six-indol.vercel.app';
 
   const ETF_COLORS = {
     VOO:  '#1D9E75',
