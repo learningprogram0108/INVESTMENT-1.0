@@ -96,6 +96,48 @@ body {
 .card-sub { font-size: 11px; color: var(--text-dim); font-weight: 400; }
 .section-title { font-size: 14px; font-weight: 700; color: var(--text-pri); margin-bottom: 10px; }
 
+/* ── 每日金句 ── */
+.quote-card {
+  border-left: 3px solid var(--accent-yel);
+}
+.quote-text {
+  font-size: 15px;
+  line-height: 1.85;
+  color: var(--text-pri);
+  font-style: normal;
+  margin: 0 0 10px 0;
+  padding: 0 0 0 10px;
+  position: relative;
+}
+.quote-text::before {
+  content: '\201C';
+  font-size: 52px;
+  line-height: 0;
+  color: var(--accent-yel);
+  opacity: 0.25;
+  position: absolute;
+  top: 12px;
+  left: -6px;
+  pointer-events: none;
+}
+.quote-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-yel);
+  background: rgba(239,159,39,0.12);
+  border-radius: 4px;
+  padding: 2px 7px;
+  margin-left: 4px;
+}
+.quote-source {
+  font-size: 11px;
+  color: var(--text-sec);
+  text-align: right;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
 /* ── AI Card ── */
 .ai-text {
   font-family: var(--font);
@@ -403,12 +445,14 @@ body {
     display: grid;
     grid-template-columns: 1fr 1fr;
     grid-template-areas:
-      "ai   hrp"
-      "dcc  opt"
-      "etfs etfs"
-      "news news";
+      "quote quote"
+      "ai    hrp"
+      "dcc   opt"
+      "etfs  etfs"
+      "news  news";
     gap: 14px;
   }
+  .quote-card   { grid-area: quote; }
   .ai-card      { grid-area: ai; }
   .hrp-card     { grid-area: hrp; }
   .dcc-card     { grid-area: dcc; }

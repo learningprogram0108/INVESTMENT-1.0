@@ -125,6 +125,19 @@
     ).join('');
   }
 
+  // ── 每日金句 ──
+  function renderQuote(quotes, reportDate) {
+    if (!quotes || !quotes.length) return;
+    const d    = new Date(reportDate || new Date().toISOString().slice(0, 10));
+    const jan1 = new Date(d.getFullYear(), 0, 1);
+    const doy  = Math.floor((d - jan1) / 86400000) + 1;          // 1-365
+    const idx  = Math.min(Math.floor((doy - 1) * 247 / 365), 246); // 0-246
+    const q    = quotes[idx];
+    el('quote-text').textContent      = q.quote;
+    el('quote-day-badge').textContent = `Day ${String(q.day).padStart(3, '0')}`;
+    el('quote-source').textContent    = `${q.chapter_title}　‧　${q.source}`;
+  }
+
   // ── AI Card ──
   function renderAI(data) {
     el('ai-text').textContent = data.gemini_analysis || '（AI 分析暫無資料）';
@@ -545,9 +558,10 @@
   async function init() {
     const ts = '?t=' + Date.now();
     try {
-      const [resp, optResp] = await Promise.all([
+      const [resp, optResp, quoteResp] = await Promise.all([
         fetch(DATA_URL + ts),
         fetch('data/portfolio_optimization.json' + ts).catch(() => null),
+        fetch('data/quotes.json' + ts).catch(() => null),
       ]);
 
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -563,6 +577,12 @@
       renderDCC(data.dcc);
       renderETFCards(data.etf_signals, data.signal_lights);
       renderNews(data.etf_signals);
+
+      // 每日金句（graceful if file missing）
+      if (quoteResp && quoteResp.ok) {
+        const quotes = await quoteResp.json();
+        renderQuote(quotes, data.report_date);
+      }
 
       // Optimization card (graceful if file missing)
       if (optResp && optResp.ok) {
