@@ -8,6 +8,8 @@
   const WM_URL = 'https://worldmonitor-six-indol.vercel.app';
   // Enterprise API Key — 需同步設定 Vercel 環境變數 WORLDMONITOR_VALID_KEYS
   const WM_KEY = 'wm_96715a700309028c9bdc0a4fa8363bda1f16dbc49315d401';
+  // Google Cloud Translation API Key（由 CI 部署時注入，勿手動修改此行）
+  const GOOGLE_TRANSLATE_KEY = '__GEMINI_KEY__';
 
   const ETF_COLORS = {
     VOO:  '#1D9E75',
@@ -362,18 +364,34 @@
   }
 
   // ── 全球即時新聞（World Monitor RSS/OSINT）──
-  // ── 翻譯輔助：Google Translate 免金鑰端點，自動偵測來源語言 → 繁體中文 ──
-  async function translateToTC(text) {
-    if (!text) return text;
-    // 已含中文字元則略過
-    if (/[一-鿿㐀-䶿]/.test(text)) return text;
-    try {
-      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=zh-TW&dt=t&q=${encodeURIComponent(text)}`;
-      const r = await fetch(url);
-      const d = await r.json();
-      return d[0]?.map(x => x[0]).join('') || text;
-    } catch {
-      return text; // 翻譯失敗時回退英文原文
+  // ── 批次翻譯：Google Cloud Translation API v2，一次 request 翻譯所有標題 ──
+  async function batchTranslateToTC(texts) {
+    const hasKey = GOOGLE_TRANSLATE_KEY && GOOGLE_TRANSLATE_KEY !== '__GEMINI_KEY__';
+    const needIdx = texts.map((t, i) => i).filter(i => !/[一-鿿㐀-䶿]/.test(texts[i] || ''));
+    if (!needIdx.length) return texts;
+    if (hasKey) {
+      try {
+        const body = { q: needIdx.map(i => texts[i]), target: 'zh-TW', format: 'text' };
+        const r = await fetch(
+          'https://translation.googleapis.com/language/translate/v2?key=' + GOOGLE_TRANSLATE_KEY,
+          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+        );
+        const d = await r.json();
+        const translated = d.data?.translations?.map(t => t.translatedText) || [];
+        const result = [...texts];
+        needIdx.forEach((origIdx, j) => { if (translated[j]) result[origIdx] = translated[j]; });
+        return result;
+      } catch { return texts; }
+    } else {
+      const results = await Promise.all(
+        needIdx.map(i =>
+          fetch('https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=zh-TW&dt=t&q=' + encodeURIComponent(texts[i]))
+            .then(r => r.json()).then(d => d[0]?.map(x => x[0]).join('') || texts[i]).catch(() => texts[i])
+        )
+      );
+      const result = [...texts];
+      needIdx.forEach((origIdx, j) => { result[origIdx] = results[j]; });
+      return result;
     }
   }
 
@@ -401,7 +419,7 @@
         return;
       }
       // 批次翻譯所有標題為繁體中文（Promise.all 並行，互不阻塞）
-      const tcTitles = await Promise.all(top.map(n => translateToTC(n.title)));
+      const tcTitles = await batchTranslateToTC(top.map(n => n.title || ''));
       container.innerHTML = top.map((n, i) => {
         const age    = Math.round((Date.now() - (n.published_at || 0)) / 60000);
         const ageStr = age < 60 ? `${age}m ago` : `${Math.round(age / 60)}h ago`;
