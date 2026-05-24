@@ -139,4 +139,4 @@ riskfolio_version: "7.2.1"
 >    這兩種模型都無法量化。
 
 ---
-*自動生成 by `portfolio_optimizer.py` | 2026-05-24 01:32:49 | riskfolio-lib 7.2.1*
+*自動生成 by `portfolio_optimizer.py` | 2026-05-24 08:22:04 | riskfolio-lib 7.2.1*

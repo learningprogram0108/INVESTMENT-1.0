@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-24T09:31:43+08:00",
+  "generated_at": "2026-05-24T16:21:12+08:00",
   "macro": {
     "us10y": 4.57,
     "us02y": 4.08,
@@ -29,14 +29,14 @@
     "VOO": {
       "light": "🔴 減碼",
       "reason": "RISK_ON順風",
-      "prev_light": "🟡 維持",
-      "changed": true
+      "prev_light": "🔴 減碼",
+      "changed": false
     },
     "QQQ": {
       "light": "🔴 減碼",
       "reason": "RISK_ON順風",
-      "prev_light": "🟡 維持",
-      "changed": true
+      "prev_light": "🔴 減碼",
+      "changed": false
     },
     "GLD": {
       "light": "🟡 維持",
@@ -84,30 +84,7 @@
       "macro_score": 67.9,
       "cycle_phase": "⚠️ 樂觀期（過熱警戒）",
       "fund_multiplier": 0.5,
-      "multiplier_mode": "刺客防禦",
-      "news_headlines": [
-        {
-          "title": "If I Could Only Hold 1 Vanguard ETF Forever, Here's What I'd Buy",
-          "url": "https://finance.yahoo.com/m/66a8e34c-0b76-3a68-8c3e-1a21edd73bb4/if-i-could-only-hold-1.html",
-          "publisher": "Motley Fool",
-          "summary": "",
-          "title_zh": "若只能長期持有1檔Vanguard ETF，我會選這檔"
-        },
-        {
-          "title": "VOO vs. IVV: Which Popular S&P 500 ETF Is the Better Buy for Investors?",
-          "url": "https://finance.yahoo.com/m/f37c5b57-8af2-3803-95cf-b0bd5ba87b79/voo-vs.-ivv%3A-which-popular.html",
-          "publisher": "Motley Fool",
-          "summary": "",
-          "title_zh": "VOO與IVV：哪檔標普500 ETF更值得投資？"
-        },
-        {
-          "title": "The Best Vanguard ETF to Buy and Hold for the Next Decade (It Has Significant AI Exposure)",
-          "url": "https://finance.yahoo.com/m/1368cf44-6778-3c8b-96e4-8c4da8071104/the-best-vanguard-etf-to-buy.html",
-          "publisher": "Motley Fool",
-          "summary": "",
-          "title_zh": "未來十年最值得持有的Vanguard AI概念ETF"
-        }
-      ]
+      "multiplier_mode": "刺客防禦"
     },
     {
       "ticker": "QQQ",
@@ -128,30 +105,7 @@
       "macro_score": 67.9,
       "cycle_phase": "⚠️ 樂觀期（過熱警戒）",
       "fund_multiplier": 0.5,
-      "multiplier_mode": "刺客防禦",
-      "news_headlines": [
-        {
-          "title": "S&P 500 Clocks Best Weekly Rally Since 2023, Dow Hits Fresh Record As US-Iran Peace Hope Boosts Risk Sentiment - UBER, GILD, RDDT, FJET, AMD In Focus",
-          "url": "https://finance.yahoo.com/m/368aaaa5-26f3-3253-ba79-6a8656607899/s%26p-500-clocks-best-weekly.html",
-          "publisher": "Stocktwits",
-          "summary": "",
-          "title_zh": "標普創2023年來最佳週漲幅，道瓊創新高，關注UBER等股"
-        },
-        {
-          "title": "Stocks Settle Higher on Iran Peace Hopes and Tech Strength",
-          "url": "https://finance.yahoo.com/m/52a5e0c1-cb41-3814-9e26-a55b3c425faf/stocks-settle-higher-on-iran.html",
-          "publisher": "Barchart",
-          "summary": "",
-          "title_zh": "受伊朗和平希望與科技股強勢帶動，美股收高"
-        },
-        {
-          "title": "ETF Zoo: Why Rebalancing Killed the ARK Star",
-          "url": "https://finance.yahoo.com/m/1e4368d2-a855-37bd-ac04-976dd67f026b/etf-zoo%3A-why-rebalancing.html",
-          "publisher": "etf.com",
-          "summary": "",
-          "title_zh": "ETF亂象：為何再平衡策略毀了ARK明星基金"
-        }
-      ]
+      "multiplier_mode": "刺客防禦"
     },
     {
       "ticker": "GLD",
@@ -172,30 +126,7 @@
       "macro_score": 67.9,
       "cycle_phase": "⚠️ 樂觀期（利差壓縮）",
       "fund_multiplier": 0.5,
-      "multiplier_mode": "刺客防禦",
-      "news_headlines": [
-        {
-          "title": "Most Gold ETFs Skim 0.40% Off the Top Every Year. One Charges a Quarter of That. Run the Math and the Difference Is a Family Vacation.",
-          "url": "https://finance.yahoo.com/m/35475906-25d5-3cab-b44f-9f0594dc8819/most-gold-etfs-skim-0.40%25-off.html",
-          "publisher": "24/7 Wall St.",
-          "summary": "",
-          "title_zh": "黃金ETF費用大不同，選對基金可省下一趟旅費"
-        },
-        {
-          "title": "GLD vs IAU: Same Gold. Different Fees. Here Is Which One Long-Term Investors Should Actually Own",
-          "url": "https://finance.yahoo.com/m/9b7ee481-6ada-3899-b732-b82ce9f888a8/gld-vs-iau%3A-same-gold..html",
-          "publisher": "Motley Fool",
-          "summary": "",
-          "title_zh": "GLD與IAU比較：長期投資人該選哪檔黃金ETF？"
-        },
-        {
-          "title": "Update: Gold Edges Lower as the Dollar Steadies",
-          "url": "https://finance.yahoo.com/markets/commodities/articles/gold-edges-lower-dollar-steadies-180009024.html",
-          "publisher": "MT Newswires",
-          "summary": "",
-          "title_zh": "更新：美元走穩，金價小幅下跌"
-        }
-      ]
+      "multiplier_mode": "刺客防禦"
     },
     {
       "ticker": "VGIT",
@@ -216,16 +147,7 @@
       "macro_score": 67.9,
       "cycle_phase": "⚠️ 樂觀期（利差壓縮）",
       "fund_multiplier": 0.5,
-      "multiplier_mode": "刺客防禦",
-      "news_headlines": [
-        {
-          "title": "I’m 58 With $1.2 Million Saved. A Financial Planner Said I’m Making One Critical Mistake",
-          "url": "https://finance.yahoo.com/m/8aff7e17-c1d9-323a-94aa-bd3b57a92ab7/i%E2%80%99m-58-with-%241.2-million.html",
-          "publisher": "24/7 Wall St.",
-          "summary": "",
-          "title_zh": "58歲存120萬美元，理財顧問指我犯了致命錯誤"
-        }
-      ]
+      "multiplier_mode": "刺客防禦"
     },
     {
       "ticker": "TYD",
@@ -246,8 +168,7 @@
       "macro_score": 67.9,
       "cycle_phase": "⚠️ 樂觀期（利差壓縮）",
       "fund_multiplier": 0.5,
-      "multiplier_mode": "刺客防禦",
-      "news_headlines": []
+      "multiplier_mode": "刺客防禦"
     },
     {
       "ticker": "GRID",
@@ -268,33 +189,10 @@
       "macro_score": 67.9,
       "cycle_phase": "⚠️ 樂觀期（利差壓縮）",
       "fund_multiplier": 0.5,
-      "multiplier_mode": "刺客防禦",
-      "news_headlines": [
-        {
-          "title": "From Copper to Nuclear: 6 ETFs That Cover Every Layer of the Grid Resilience Boom",
-          "url": "https://finance.yahoo.com/m/82a5ec9c-d00a-355b-ba05-be6a92911ba8/from-copper-to-nuclear%3A-6.html",
-          "publisher": "24/7 Wall St.",
-          "summary": "",
-          "title_zh": "掌握電網韌性商機：6檔涵蓋銅礦至核能的ETF"
-        },
-        {
-          "title": "The 5 Thematic ETFs Beating the S 500 — and 388 That Aren't",
-          "url": "https://finance.yahoo.com/m/334c088e-2877-3162-81b5-25501ead2612/the-5-thematic-etfs-beating.html",
-          "publisher": "etf.com",
-          "summary": "",
-          "title_zh": "5檔打敗標普500的主題ETF，以及388檔落後者"
-        },
-        {
-          "title": "Top Thematic ETFs: Best Funds for Theme Investing in 2026",
-          "url": "https://finance.yahoo.com/m/44c1bfaf-6572-3ad5-ab16-16b148e8cdb4/top-thematic-etfs%3A-best-funds.html",
-          "publisher": "etf.com",
-          "summary": "",
-          "title_zh": "2026年最佳主題投資基金：頂尖主題ETF推薦"
-        }
-      ]
+      "multiplier_mode": "刺客防禦"
     }
   ],
-  "gemini_analysis": "AI 市場解讀\n\n【體制：RISK_ON · 信用正常 · 加速擴張 · 曲線正常】\n\n目前市場處於風險偏好環境，ISM PMI顯示景氣加速擴張，支撐美股表現。VOO與VGIT相關係數升至0.278，顯示股債連動性增強，配置風險分散效果減弱。HRP模型建議高比例配置股票，而風險平價模型則偏向防禦。當前實質利率維持正值，但通膨仍具黏性。對散戶而言，景氣擴張雖利好股市，但資產相關性上升意味著傳統股債平衡策略的保護力下降，須留意波動率風險及通膨帶來的資產定價壓力。\n\n【各標的信號】\nVOO 🔴 減碼 — 市場風險偏好高，獲利了結\nQQQ 🔴 減碼 — 風險資產過熱，調整曝險\nGLD 🟡 維持 — 價格偏離中位數，觀望動能\nVGIT 🔴 減碼 — 風險偏好上升，公債需求降\nTYD 🔴 減碼 — 風險偏好上升，槓桿避險降\nGRID 🟡 維持 — 技術指標中性，順風期持有",
+  "gemini_analysis": "AI 市場解讀\n\n【體制：RISK_ON · 信用正常 · 加速擴張 · 曲線正常】\n\n目前市場處於風險偏好環境，ISM PMI顯示景氣加速擴張，支撐美股表現。VOO與VGIT相關係數升至0.278，顯示股債連動性增強，配置上HRP模型偏重股票，而等風險貢獻則因債券波動率極低而大幅增配債券。當前實質利率維持正值且就業穩健，資產間相關性上升反映市場對總經數據高度敏感。散戶應留意股債相關性走高將削弱資產組合的避險分散效果，且黃金波動率偏高，整體部位風險集中於股票資產，建議關注景氣動能若轉弱可能帶來的回調壓力。\n\n【各標的信號】\nVOO 🔴 減碼 — 市場風險偏好高，獲利了結\nQQQ 🔴 減碼 — 風險資產過熱，調整曝險\nGLD 🟡 維持 — 價格偏離均值，觀察動能\nVGIT 🔴 減碼 — 避險需求降溫，資金流出\nTYD 🔴 減碼 — 利率風險上升，減持槓桿\nGRID 🟡 維持 — 技術指標中性，觀望趨勢",
   "hrp_weights": {
     "VOO": 0.0829,
     "QQQ": 0.0498,
