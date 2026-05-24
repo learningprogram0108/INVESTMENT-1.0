@@ -1,16 +1,16 @@
 {
-  "generated_at": "2026-05-22T17:48:58+08:00",
+  "generated_at": "2026-05-24T09:31:43+08:00",
   "macro": {
     "us10y": 4.57,
-    "us02y": 4.04,
+    "us02y": 4.08,
     "cpi_yoy": 3.95,
-    "breakeven": 2.39,
-    "real_rate": 2.18,
-    "yield_curve": 0.53,
+    "breakeven": 2.4,
+    "real_rate": 2.17,
+    "yield_curve": 0.49,
     "sahm_triggered": false,
     "sahm_indicator": 0.233,
     "recession_prob": 0.0,
-    "hy_spread": 2.8,
+    "hy_spread": 2.78,
     "ism_pmi": [
       53.0,
       52.0,
@@ -27,16 +27,16 @@
   },
   "signal_lights": {
     "VOO": {
-      "light": "🟡 維持",
-      "reason": "RSI65正常、RISK_ON順風",
+      "light": "🔴 減碼",
+      "reason": "RISK_ON順風",
       "prev_light": "🟡 維持",
-      "changed": false
+      "changed": true
     },
     "QQQ": {
-      "light": "🟡 維持",
-      "reason": "RSI68正常、RISK_ON順風",
+      "light": "🔴 減碼",
+      "reason": "RISK_ON順風",
       "prev_light": "🟡 維持",
-      "changed": false
+      "changed": true
     },
     "GLD": {
       "light": "🟡 維持",
@@ -58,7 +58,7 @@
     },
     "GRID": {
       "light": "🟡 維持",
-      "reason": "RSI50正常、RISK_ON順風",
+      "reason": "RSI54正常、RISK_ON順風",
       "prev_light": "🟡 維持",
       "changed": false
     }
@@ -68,15 +68,15 @@
     {
       "ticker": "VOO",
       "name": "Vanguard S&P 500",
-      "price": 682.84,
-      "change_pct": 0.19,
-      "z_score": 2.75,
-      "rsi": 65.1,
-      "bb_pct": 0.767,
-      "sharpe_1y": 1.92,
+      "price": 685.55,
+      "change_pct": 0.4,
+      "z_score": 2.813,
+      "rsi": 68.5,
+      "bb_pct": 0.799,
+      "sharpe_1y": 2.11,
       "max_drawdown": -9.2,
-      "macd_hist": -0.9295,
-      "sentiment_score": 89.5,
+      "macd_hist": -0.8561,
+      "sentiment_score": 90.7,
       "combined_confidence": 41.3,
       "confidence_signal": "賣  出",
       "technical_score": 23.5,
@@ -87,40 +87,40 @@
       "multiplier_mode": "刺客防禦",
       "news_headlines": [
         {
-          "title": "4 Vanguard ETFs That Complement Each Other Well in a Portfolio",
-          "url": "https://finance.yahoo.com/m/2a43c2be-d83c-399e-81eb-174c5902a5b0/4-vanguard-etfs-that.html",
+          "title": "If I Could Only Hold 1 Vanguard ETF Forever, Here's What I'd Buy",
+          "url": "https://finance.yahoo.com/m/66a8e34c-0b76-3a68-8c3e-1a21edd73bb4/if-i-could-only-hold-1.html",
           "publisher": "Motley Fool",
           "summary": "",
-          "title_zh": "投資組合中互補的 4 檔先鋒 ETF"
+          "title_zh": "若只能長期持有1檔Vanguard ETF，我會選這檔"
         },
         {
-          "title": "The $300,000 Mistake: Financial Advisor Explains Why Waiting to Buy VOO Is Costing You Compounding",
-          "url": "https://finance.yahoo.com/m/3d3646c4-d4ba-3c00-a591-a2480ecba71d/the-%24300%2C000-mistake%3A.html",
-          "publisher": "24/7 Wall St.",
+          "title": "VOO vs. IVV: Which Popular S&P 500 ETF Is the Better Buy for Investors?",
+          "url": "https://finance.yahoo.com/m/f37c5b57-8af2-3803-95cf-b0bd5ba87b79/voo-vs.-ivv%3A-which-popular.html",
+          "publisher": "Motley Fool",
           "summary": "",
-          "title_zh": "30 萬美元的代價：理財顧問解析延遲買入 VOO 的複利損失"
+          "title_zh": "VOO與IVV：哪檔標普500 ETF更值得投資？"
         },
         {
-          "title": "An Investor’s Field Guide to ETF Structures",
-          "url": "https://finance.yahoo.com/m/466af866-a649-32dc-bd18-32d81aab0718/an-investor%E2%80%99s-field-guide-to.html",
-          "publisher": "etf.com",
+          "title": "The Best Vanguard ETF to Buy and Hold for the Next Decade (It Has Significant AI Exposure)",
+          "url": "https://finance.yahoo.com/m/1368cf44-6778-3c8b-96e4-8c4da8071104/the-best-vanguard-etf-to-buy.html",
+          "publisher": "Motley Fool",
           "summary": "",
-          "title_zh": "投資人必讀：ETF 結構指南"
+          "title_zh": "未來十年最值得持有的Vanguard AI概念ETF"
         }
       ]
     },
     {
       "ticker": "QQQ",
       "name": "Invesco QQQ Trust",
-      "price": 714.51,
-      "change_pct": 0.19,
-      "z_score": 3.142,
-      "rsi": 67.5,
-      "bb_pct": 0.757,
-      "sharpe_1y": 2.05,
+      "price": 717.54,
+      "change_pct": 0.42,
+      "z_score": 3.14,
+      "rsi": 69.8,
+      "bb_pct": 0.765,
+      "sharpe_1y": 2.17,
       "max_drawdown": -12.2,
-      "macd_hist": -1.2796,
-      "sentiment_score": 91.6,
+      "macd_hist": -1.3461,
+      "sentiment_score": 92.3,
       "combined_confidence": 41.3,
       "confidence_signal": "賣  出",
       "technical_score": 23.5,
@@ -131,43 +131,43 @@
       "multiplier_mode": "刺客防禦",
       "news_headlines": [
         {
-          "title": "Nasdaq, S&P 500, Dow Futures Climb As Trump's $2B Quantum Computing Bet Outweighs Iran Jitters: RKLB, IBM, RGTI, NIO In Focus",
-          "url": "https://finance.yahoo.com/m/9e6ea4d3-efe6-3dde-a195-483328e15ec8/nasdaq%2C-s%26p-500%2C-dow-futures.html",
+          "title": "S&P 500 Clocks Best Weekly Rally Since 2023, Dow Hits Fresh Record As US-Iran Peace Hope Boosts Risk Sentiment - UBER, GILD, RDDT, FJET, AMD In Focus",
+          "url": "https://finance.yahoo.com/m/368aaaa5-26f3-3253-ba79-6a8656607899/s%26p-500-clocks-best-weekly.html",
           "publisher": "Stocktwits",
           "summary": "",
-          "title_zh": "美股期貨走揚，川普量子運算投資蓋過伊朗緊張局勢"
+          "title_zh": "標普創2023年來最佳週漲幅，道瓊創新高，關注UBER等股"
         },
         {
-          "title": "Dow Hits Record Highs, S&P 500 And Nasdaq Climb Amid Hopes Of Diplomatic Resolution Between US and Iran— IBM, STLA, SPOT, FCEL, EL In Focus",
-          "url": "https://finance.yahoo.com/m/bb7e1c86-7cc2-3081-8515-f12747cabc85/dow-hits-record-highs%2C-s%26p.html",
-          "publisher": "Stocktwits",
-          "summary": "",
-          "title_zh": "道瓊創新高，美伊外交緩解希望帶動美股上漲"
-        },
-        {
-          "title": "Stocks Rebound as Crude Oil Falls on Hopes for a US-Iran Deal",
-          "url": "https://finance.yahoo.com/m/f559af84-72d1-3d00-97bb-8c78617ae50a/stocks-rebound-as-crude-oil.html",
+          "title": "Stocks Settle Higher on Iran Peace Hopes and Tech Strength",
+          "url": "https://finance.yahoo.com/m/52a5e0c1-cb41-3814-9e26-a55b3c425faf/stocks-settle-higher-on-iran.html",
           "publisher": "Barchart",
           "summary": "",
-          "title_zh": "原油價格下跌，美伊協議希望帶動股市反彈"
+          "title_zh": "受伊朗和平希望與科技股強勢帶動，美股收高"
+        },
+        {
+          "title": "ETF Zoo: Why Rebalancing Killed the ARK Star",
+          "url": "https://finance.yahoo.com/m/1e4368d2-a855-37bd-ac04-976dd67f026b/etf-zoo%3A-why-rebalancing.html",
+          "publisher": "etf.com",
+          "summary": "",
+          "title_zh": "ETF亂象：為何再平衡策略毀了ARK明星基金"
         }
       ]
     },
     {
       "ticker": "GLD",
       "name": "SPDR Gold Shares",
-      "price": 416.99,
-      "change_pct": -0.1,
-      "z_score": 0.328,
-      "rsi": 39.3,
-      "bb_pct": 0.256,
-      "sharpe_1y": 1.32,
+      "price": 413.82,
+      "change_pct": -0.76,
+      "z_score": 0.262,
+      "rsi": 35.1,
+      "bb_pct": 0.184,
+      "sharpe_1y": 1.27,
       "max_drawdown": -19.2,
-      "macd_hist": -0.956,
+      "macd_hist": -1.0332,
       "sentiment_score": 69.4,
-      "combined_confidence": 60.7,
+      "combined_confidence": 66.0,
       "confidence_signal": "買  入",
-      "technical_score": 55.9,
+      "technical_score": 64.7,
       "value_score": null,
       "macro_score": 67.9,
       "cycle_phase": "⚠️ 樂觀期（利差壓縮）",
@@ -175,40 +175,40 @@
       "multiplier_mode": "刺客防禦",
       "news_headlines": [
         {
-          "title": "An Investor’s Field Guide to ETF Structures",
-          "url": "https://finance.yahoo.com/m/466af866-a649-32dc-bd18-32d81aab0718/an-investor%E2%80%99s-field-guide-to.html",
-          "publisher": "etf.com",
+          "title": "Most Gold ETFs Skim 0.40% Off the Top Every Year. One Charges a Quarter of That. Run the Math and the Difference Is a Family Vacation.",
+          "url": "https://finance.yahoo.com/m/35475906-25d5-3cab-b44f-9f0594dc8819/most-gold-etfs-skim-0.40%25-off.html",
+          "publisher": "24/7 Wall St.",
           "summary": "",
-          "title_zh": "投資人必讀：ETF 結構指南"
+          "title_zh": "黃金ETF費用大不同，選對基金可省下一趟旅費"
         },
         {
-          "title": "Update: Gold Rises as the Dollar and Yields Moderate as Iran Considers a Fresh U.S. Peace Offer",
-          "url": "https://finance.yahoo.com/markets/commodities/articles/gold-rises-dollar-yields-moderate-180142345.html",
-          "publisher": "MT Newswires",
+          "title": "GLD vs IAU: Same Gold. Different Fees. Here Is Which One Long-Term Investors Should Actually Own",
+          "url": "https://finance.yahoo.com/m/9b7ee481-6ada-3899-b732-b82ce9f888a8/gld-vs-iau%3A-same-gold..html",
+          "publisher": "Motley Fool",
           "summary": "",
-          "title_zh": "更新：美元與殖利率回落，伊朗考慮美國和平提議，金價上漲"
+          "title_zh": "GLD與IAU比較：長期投資人該選哪檔黃金ETF？"
         },
         {
-          "title": "Gold Trading Lower as USD and Yields Climb While Iran Considers a Fresh U.S. Peace Offer",
-          "url": "https://finance.yahoo.com/markets/commodities/articles/gold-trading-lower-usd-yields-131948451.html",
+          "title": "Update: Gold Edges Lower as the Dollar Steadies",
+          "url": "https://finance.yahoo.com/markets/commodities/articles/gold-edges-lower-dollar-steadies-180009024.html",
           "publisher": "MT Newswires",
           "summary": "",
-          "title_zh": "美元與殖利率攀升，伊朗考慮美國和平提議，金價走低"
+          "title_zh": "更新：美元走穩，金價小幅下跌"
         }
       ]
     },
     {
       "ticker": "VGIT",
       "name": "Vanguard Intermediate-Term Treasury",
-      "price": 58.75,
-      "change_pct": 0.05,
-      "z_score": -2.107,
-      "rsi": 40.8,
-      "bb_pct": 0.253,
-      "sharpe_1y": -0.05,
+      "price": 58.73,
+      "change_pct": -0.03,
+      "z_score": -2.087,
+      "rsi": 39.8,
+      "bb_pct": 0.257,
+      "sharpe_1y": 0.04,
       "max_drawdown": -3.7,
-      "macd_hist": -0.0346,
-      "sentiment_score": 49.1,
+      "macd_hist": -0.0228,
+      "sentiment_score": 49.9,
       "combined_confidence": 64.2,
       "confidence_signal": "買  入",
       "technical_score": 61.8,
@@ -223,22 +223,22 @@
           "url": "https://finance.yahoo.com/m/8aff7e17-c1d9-323a-94aa-bd3b57a92ab7/i%E2%80%99m-58-with-%241.2-million.html",
           "publisher": "24/7 Wall St.",
           "summary": "",
-          "title_zh": "58 歲存 120 萬美元，理財規劃師指出的致命錯誤"
+          "title_zh": "58歲存120萬美元，理財顧問指我犯了致命錯誤"
         }
       ]
     },
     {
       "ticker": "TYD",
       "name": "Direxion Daily 7-10 Year Treasury Bull 3x",
-      "price": 23.4,
-      "change_pct": 0.21,
-      "z_score": -2.134,
-      "rsi": 38.0,
-      "bb_pct": 0.21,
-      "sharpe_1y": -0.14,
+      "price": 23.44,
+      "change_pct": 0.17,
+      "z_score": -2.021,
+      "rsi": 39.9,
+      "bb_pct": 0.254,
+      "sharpe_1y": 0.01,
       "max_drawdown": -14.4,
-      "macd_hist": -0.071,
-      "sentiment_score": 48.8,
+      "macd_hist": -0.048,
+      "sentiment_score": 50.4,
       "combined_confidence": 64.2,
       "confidence_signal": "買  入",
       "technical_score": 61.8,
@@ -252,15 +252,15 @@
     {
       "ticker": "GRID",
       "name": "First Trust NASDAQ Clean Edge Smart Grid",
-      "price": 190.98,
-      "change_pct": 1.32,
-      "z_score": 1.884,
-      "rsi": 50.1,
-      "bb_pct": 0.465,
-      "sharpe_1y": 2.07,
+      "price": 192.5,
+      "change_pct": 0.8,
+      "z_score": 1.954,
+      "rsi": 53.6,
+      "bb_pct": 0.533,
+      "sharpe_1y": 2.18,
       "max_drawdown": -11.8,
-      "macd_hist": -1.4576,
-      "sentiment_score": 82.3,
+      "macd_hist": -1.2454,
+      "sentiment_score": 83.5,
       "combined_confidence": 44.8,
       "confidence_signal": "持  有",
       "technical_score": 29.4,
@@ -275,33 +275,33 @@
           "url": "https://finance.yahoo.com/m/82a5ec9c-d00a-355b-ba05-be6a92911ba8/from-copper-to-nuclear%3A-6.html",
           "publisher": "24/7 Wall St.",
           "summary": "",
-          "title_zh": "從銅到核能：涵蓋電網韌性熱潮的 6 檔 ETF"
+          "title_zh": "掌握電網韌性商機：6檔涵蓋銅礦至核能的ETF"
         },
         {
           "title": "The 5 Thematic ETFs Beating the S 500 — and 388 That Aren't",
           "url": "https://finance.yahoo.com/m/334c088e-2877-3162-81b5-25501ead2612/the-5-thematic-etfs-beating.html",
           "publisher": "etf.com",
           "summary": "",
-          "title_zh": "5 檔績效超越標普 500 的主題 ETF 與 388 檔落後者"
+          "title_zh": "5檔打敗標普500的主題ETF，以及388檔落後者"
         },
         {
           "title": "Top Thematic ETFs: Best Funds for Theme Investing in 2026",
           "url": "https://finance.yahoo.com/m/44c1bfaf-6572-3ad5-ab16-16b148e8cdb4/top-thematic-etfs%3A-best-funds.html",
           "publisher": "etf.com",
           "summary": "",
-          "title_zh": "2026 年頂尖主題 ETF：最佳投資標的"
+          "title_zh": "2026年最佳主題投資基金：頂尖主題ETF推薦"
         }
       ]
     }
   ],
-  "gemini_analysis": "AI 市場解讀\n\n【體制：RISK_ON · 信用正常 · 加速擴張 · 曲線正常】\n\n目前市場處於風險偏好環境，ISM加速擴張支撐股市，但資產間相關係數全面上升，降低了分散風險的效能。當前配置若偏向債券，將與HRP建議的九成股票配置大幅背離。總經主線下，股債相關性由零點二零五升至零點二九四，顯示通膨與利率預期正同步牽動股債波動。對散戶而言，當前體制意味著資產連動性增強，傳統股債平衡策略的避險效果減弱，高波動資產與總體經濟動能的相關性提升，需留意市場同步回檔的系統性風險。\n\n【各標的信號】\nVOO 🟡 維持 — 指標正常且市場風險偏好強勁\nQQQ 🟡 維持 — RSI未超買且市場風險偏好強勁\nGLD 🟡 維持 — 價格偏離度適中且市場風險偏好強勁\nVGIT 🔴 減碼 — 市場風險偏好強導致避險需求降\nTYD 🔴 減碼 — 市場風險偏好強導致債券槓桿受壓\nGRID 🟡 維持 — RSI處於中性且市場風險偏好強勁",
+  "gemini_analysis": "AI 市場解讀\n\n【體制：RISK_ON · 信用正常 · 加速擴張 · 曲線正常】\n\n目前市場處於風險偏好環境，ISM PMI顯示景氣加速擴張，支撐美股表現。VOO與VGIT相關係數升至0.278，顯示股債連動性增強，配置風險分散效果減弱。HRP模型建議高比例配置股票，而風險平價模型則偏向防禦。當前實質利率維持正值，但通膨仍具黏性。對散戶而言，景氣擴張雖利好股市，但資產相關性上升意味著傳統股債平衡策略的保護力下降，須留意波動率風險及通膨帶來的資產定價壓力。\n\n【各標的信號】\nVOO 🔴 減碼 — 市場風險偏好高，獲利了結\nQQQ 🔴 減碼 — 風險資產過熱，調整曝險\nGLD 🟡 維持 — 價格偏離中位數，觀望動能\nVGIT 🔴 減碼 — 風險偏好上升，公債需求降\nTYD 🔴 減碼 — 風險偏好上升，槓桿避險降\nGRID 🟡 維持 — 技術指標中性，順風期持有",
   "hrp_weights": {
-    "VOO": 0.0832,
-    "QQQ": 0.05,
-    "VGIT": 0.5779,
-    "TYD": 0.1445,
-    "GLD": 0.0636,
-    "GRID": 0.0809
+    "VOO": 0.0829,
+    "QQQ": 0.0498,
+    "VGIT": 0.5786,
+    "TYD": 0.1447,
+    "GLD": 0.0634,
+    "GRID": 0.0807
   },
   "dcc": {
     "tickers": [
@@ -310,32 +310,32 @@
       "GLD"
     ],
     "corr": {
-      "VOO_VGIT": 0.29435406398743896,
-      "VOO_GLD": 0.3785624273030319,
-      "VGIT_GLD": 0.4573968934135914
+      "VOO_VGIT": 0.27779589980045266,
+      "VOO_GLD": 0.36491219595466334,
+      "VGIT_GLD": 0.4418870386020389
     },
     "corr_30d_avg": {
-      "VOO_VGIT": 0.2048040143026744,
-      "VOO_GLD": 0.3163164601571109,
-      "VGIT_GLD": 0.35999836858277345
+      "VOO_VGIT": 0.20649814341725262,
+      "VOO_GLD": 0.3179739817737766,
+      "VGIT_GLD": 0.36472927804818944
     },
     "vol_annual": {
-      "VOO": 0.13205702061399113,
-      "VGIT": 0.0403877054522928,
-      "GLD": 0.22535607067456648
+      "VOO": 0.12548592033177003,
+      "VGIT": 0.03979930094283596,
+      "GLD": 0.2088462158082774
     },
     "hrp": {
-      "VOO": 0.9049611970916022,
-      "VGIT": 0.0029575431491388783,
-      "GLD": 0.09208125975925896
+      "VOO": 0.898600767366873,
+      "VGIT": 0.0035533676471854116,
+      "GLD": 0.09784586498594158
     },
     "risk_parity": {
-      "VOO": 0.2120292419374142,
-      "VGIT": 0.6719890020892614,
-      "GLD": 0.11598175597332439
+      "VOO": 0.21653253011342735,
+      "VGIT": 0.6621320306156688,
+      "GLD": 0.12133543927090383
     },
-    "dcc_alpha": 0.03289685363684899,
-    "dcc_beta": 0.9151054900551737
+    "dcc_alpha": 0.03262640395378739,
+    "dcc_beta": 0.9154080319164047
   },
   "tyd_timing": {
     "score": 45,
