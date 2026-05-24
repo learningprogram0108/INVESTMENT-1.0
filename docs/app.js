@@ -362,6 +362,21 @@
   }
 
   // ── 全球即時新聞（World Monitor RSS/OSINT）──
+  // ── 翻譯輔助：Google Translate 免金鑰端點，自動偵測來源語言 → 繁體中文 ──
+  async function translateToTC(text) {
+    if (!text) return text;
+    // 已含中文字元則略過
+    if (/[一-鿿㐀-䶿]/.test(text)) return text;
+    try {
+      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=zh-TW&dt=t&q=${encodeURIComponent(text)}`;
+      const r = await fetch(url);
+      const d = await r.json();
+      return d[0]?.map(x => x[0]).join('') || text;
+    } catch {
+      return text; // 翻譯失敗時回退英文原文
+    }
+  }
+
   async function fetchAndRenderWMNews() {
     const container = el('wm-news-container');
     if (!WM_URL) {
@@ -385,7 +400,9 @@
         container.innerHTML = '<p class="loading-msg">暫無新聞資料</p>';
         return;
       }
-      container.innerHTML = top.map(n => {
+      // 批次翻譯所有標題為繁體中文（Promise.all 並行，互不阻塞）
+      const tcTitles = await Promise.all(top.map(n => translateToTC(n.title)));
+      container.innerHTML = top.map((n, i) => {
         const age    = Math.round((Date.now() - (n.published_at || 0)) / 60000);
         const ageStr = age < 60 ? `${age}m ago` : `${Math.round(age / 60)}h ago`;
         const score  = n.importance_score != null
@@ -398,7 +415,7 @@
               <span class="wm-age">${ageStr}</span>
               ${score}
             </div>
-            <a class="wm-news-title" href="${n.link || '#'}" target="_blank" rel="noopener noreferrer">${n.title || ''}</a>
+            <a class="wm-news-title" href="${n.link || '#'}" target="_blank" rel="noopener noreferrer">${tcTitles[i] || n.title || ''}</a>
             ${n.snippet ? `<p class="wm-snippet">${n.snippet}</p>` : ''}
           </div>`;
       }).join('');
