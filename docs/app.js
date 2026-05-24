@@ -373,8 +373,12 @@
         headers: { 'X-WorldMonitor-Key': WM_KEY },
       });
       if (!res.ok) throw new Error('HTTP ' + res.status);
-      const items = await res.json();
-      const top = (Array.isArray(items) ? items : [])
+      const data = await res.json();
+      // list-feed-digest 回傳 {categories:{politics:{items:[]},…}} 結構，攤平所有分類
+      const rawItems = Array.isArray(data)
+        ? data
+        : Object.values(data.categories || {}).flatMap(c => c.items || []);
+      const top = rawItems
         .sort((a, b) => (b.importance_score || 0) - (a.importance_score || 0))
         .slice(0, 12);
       if (!top.length) {
