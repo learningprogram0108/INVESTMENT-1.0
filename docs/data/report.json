@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-24T22:01:47+08:00",
+  "generated_at": "2026-05-26T23:04:52+08:00",
   "macro": {
     "us10y": 4.57,
     "us02y": 4.08,
@@ -10,7 +10,7 @@
     "sahm_triggered": false,
     "sahm_indicator": 0.233,
     "recession_prob": 0.0,
-    "hy_spread": 2.78,
+    "hy_spread": 2.74,
     "ism_pmi": [
       53.0,
       52.0,
@@ -45,20 +45,20 @@
       "changed": false
     },
     "VGIT": {
-      "light": "🔴 減碼",
-      "reason": "RISK_ON順風",
+      "light": "🟡 維持",
+      "reason": "RSI50正常、RISK_ON順風",
       "prev_light": "🔴 減碼",
-      "changed": false
+      "changed": true
     },
     "TYD": {
-      "light": "🔴 減碼",
-      "reason": "RISK_ON順風",
+      "light": "🟡 維持",
+      "reason": "RSI50正常、RISK_ON順風",
       "prev_light": "🔴 減碼",
-      "changed": false
+      "changed": true
     },
     "GRID": {
       "light": "🟡 維持",
-      "reason": "RSI54正常、RISK_ON順風",
+      "reason": "RSI63正常、RISK_ON順風",
       "prev_light": "🟡 維持",
       "changed": false
     }
@@ -68,18 +68,18 @@
     {
       "ticker": "VOO",
       "name": "Vanguard S&P 500",
-      "price": 685.55,
-      "change_pct": 0.4,
-      "z_score": 2.813,
-      "rsi": 68.5,
-      "bb_pct": 0.799,
-      "sharpe_1y": 2.11,
+      "price": 690.39,
+      "change_pct": 0.71,
+      "z_score": 2.959,
+      "rsi": 73.7,
+      "bb_pct": 0.87,
+      "sharpe_1y": 2.17,
       "max_drawdown": -9.2,
-      "macd_hist": -0.8561,
-      "sentiment_score": 90.7,
-      "combined_confidence": 41.3,
-      "confidence_signal": "賣  出",
-      "technical_score": 23.5,
+      "macd_hist": -0.5674,
+      "sentiment_score": 92.2,
+      "combined_confidence": 27.2,
+      "confidence_signal": "強力賣出",
+      "technical_score": 0.0,
       "value_score": null,
       "macro_score": 67.9,
       "cycle_phase": "⚠️ 樂觀期（過熱警戒）",
@@ -89,18 +89,18 @@
     {
       "ticker": "QQQ",
       "name": "Invesco QQQ Trust",
-      "price": 717.54,
-      "change_pct": 0.42,
-      "z_score": 3.14,
-      "rsi": 69.8,
-      "bb_pct": 0.765,
-      "sharpe_1y": 2.17,
+      "price": 729.48,
+      "change_pct": 1.66,
+      "z_score": 3.378,
+      "rsi": 77.0,
+      "bb_pct": 0.866,
+      "sharpe_1y": 2.26,
       "max_drawdown": -12.2,
-      "macd_hist": -1.3461,
-      "sentiment_score": 92.3,
-      "combined_confidence": 41.3,
-      "confidence_signal": "賣  出",
-      "technical_score": 23.5,
+      "macd_hist": -0.7538,
+      "sentiment_score": 92.5,
+      "combined_confidence": 27.2,
+      "confidence_signal": "強力賣出",
+      "technical_score": 0.0,
       "value_score": null,
       "macro_score": 67.9,
       "cycle_phase": "⚠️ 樂觀期（過熱警戒）",
@@ -110,18 +110,18 @@
     {
       "ticker": "GLD",
       "name": "SPDR Gold Shares",
-      "price": 413.82,
-      "change_pct": -0.76,
-      "z_score": 0.262,
-      "rsi": 35.1,
-      "bb_pct": 0.184,
-      "sharpe_1y": 1.27,
+      "price": 414.35,
+      "change_pct": 0.13,
+      "z_score": 0.272,
+      "rsi": 36.4,
+      "bb_pct": 0.231,
+      "sharpe_1y": 1.3,
       "max_drawdown": -19.2,
-      "macd_hist": -1.0332,
-      "sentiment_score": 69.4,
-      "combined_confidence": 66.0,
+      "macd_hist": -0.9616,
+      "sentiment_score": 69.8,
+      "combined_confidence": 60.7,
       "confidence_signal": "買  入",
-      "technical_score": 64.7,
+      "technical_score": 55.9,
       "value_score": null,
       "macro_score": 67.9,
       "cycle_phase": "⚠️ 樂觀期（利差壓縮）",
@@ -131,15 +131,15 @@
     {
       "ticker": "VGIT",
       "name": "Vanguard Intermediate-Term Treasury",
-      "price": 58.73,
-      "change_pct": -0.03,
-      "z_score": -2.087,
-      "rsi": 39.8,
-      "bb_pct": 0.257,
+      "price": 58.87,
+      "change_pct": 0.23,
+      "z_score": -1.731,
+      "rsi": 49.5,
+      "bb_pct": 0.393,
       "sharpe_1y": 0.04,
       "max_drawdown": -3.7,
-      "macd_hist": -0.0228,
-      "sentiment_score": 49.9,
+      "macd_hist": -0.0038,
+      "sentiment_score": 53.1,
       "combined_confidence": 64.2,
       "confidence_signal": "買  入",
       "technical_score": 61.8,
@@ -152,15 +152,15 @@
     {
       "ticker": "TYD",
       "name": "Direxion Daily 7-10 Year Treasury Bull 3x",
-      "price": 23.44,
-      "change_pct": 0.17,
-      "z_score": -2.021,
-      "rsi": 39.9,
-      "bb_pct": 0.254,
-      "sharpe_1y": 0.01,
+      "price": 23.66,
+      "change_pct": 0.94,
+      "z_score": -1.713,
+      "rsi": 49.7,
+      "bb_pct": 0.389,
+      "sharpe_1y": 0.0,
       "max_drawdown": -14.4,
-      "macd_hist": -0.048,
-      "sentiment_score": 50.4,
+      "macd_hist": -0.0142,
+      "sentiment_score": 53.2,
       "combined_confidence": 64.2,
       "confidence_signal": "買  入",
       "technical_score": 61.8,
@@ -173,18 +173,18 @@
     {
       "ticker": "GRID",
       "name": "First Trust NASDAQ Clean Edge Smart Grid",
-      "price": 192.5,
-      "change_pct": 0.8,
-      "z_score": 1.954,
-      "rsi": 53.6,
-      "bb_pct": 0.533,
-      "sharpe_1y": 2.18,
+      "price": 197.01,
+      "change_pct": 2.34,
+      "z_score": 2.216,
+      "rsi": 62.6,
+      "bb_pct": 0.755,
+      "sharpe_1y": 2.29,
       "max_drawdown": -11.8,
-      "macd_hist": -1.2454,
-      "sentiment_score": 83.5,
-      "combined_confidence": 44.8,
-      "confidence_signal": "持  有",
-      "technical_score": 29.4,
+      "macd_hist": -0.7958,
+      "sentiment_score": 86.0,
+      "combined_confidence": 41.3,
+      "confidence_signal": "賣  出",
+      "technical_score": 23.5,
       "value_score": null,
       "macro_score": 67.9,
       "cycle_phase": "⚠️ 樂觀期（利差壓縮）",
@@ -192,14 +192,14 @@
       "multiplier_mode": "刺客防禦"
     }
   ],
-  "gemini_analysis": "AI 市場解讀\n\n【體制：RISK_ON · 信用正常 · 加速擴張 · 曲線正常】\n\n市場處於風險偏好環境，景氣擴張與信用利差收斂支撐股市。目前資產間相關係數全數上升，顯示市場波動共振風險增加。HRP模型建議重押美股，而風險平價模型則要求大幅增持債券以平衡波動。VOO與VGIT相關係數升至零點二七八，反映總經動能強勁下，股債避險功能減弱。散戶應留意資產同步波動帶來的風險，當前高實質利率環境下，資產配置的多元分散效益已隨相關性上升而遞減，需警惕市場情緒轉向引發的連鎖修正。\n\n【各標的信號】\nVOO 🔴 減碼 — 市場風險偏好高，獲利了結\nQQQ 🔴 減碼 — 風險資產過熱，調整曝險\nGLD 🟡 維持 — 價格偏離均值，觀望動能\nVGIT 🔴 減碼 — 風險情緒轉強，債券失寵\nTYD 🔴 減碼 — 順風環境不利，槓桿債弱\nGRID 🟡 維持 — 技術指標中性，等待趨勢",
+  "gemini_analysis": "AI 市場解讀\n\n【體制：RISK_ON · 信用正常 · 加速擴張 · 曲線正常】\n\n目前市場處於風險偏好環境，ISM PMI加速擴張與信用利差收斂支撐股市。VOO與VGIT相關係數升至0.262，反映總經強勁使股債避險功能減弱。HRP模型建議高比例配置VOO，而風險平價模型則因債券波動率低而偏向VGIT。對散戶而言，當前景氣擴張有利風險資產，但需留意股債相關性上升將削弱資產組合的防禦能力，若通膨維持4%且實質利率偏高，市場對貨幣政策的敏感度將隨之增加，波動風險不容忽視。\n\n【各標的信號】\nVOO 🔴 減碼 — 風險偏好高，獲利了結\nQQQ 🔴 減碼 — 風險偏好高，調節部位\nGLD 🟡 維持 — 價格偏離中性，觀望動能\nVGIT 🟡 維持 — 指標趨於中性，靜待方向\nTYD 🟡 維持 — 技術指標正常，持平看待\nGRID 🟡 維持 — 價格動能適中，維持現狀",
   "hrp_weights": {
     "VOO": 0.0829,
-    "QQQ": 0.0498,
-    "VGIT": 0.5786,
+    "QQQ": 0.0497,
+    "VGIT": 0.5787,
     "TYD": 0.1447,
-    "GLD": 0.0634,
-    "GRID": 0.0807
+    "GLD": 0.0636,
+    "GRID": 0.0804
   },
   "dcc": {
     "tickers": [
@@ -208,35 +208,35 @@
       "GLD"
     ],
     "corr": {
-      "VOO_VGIT": 0.27779589980045266,
-      "VOO_GLD": 0.36491219595466334,
-      "VGIT_GLD": 0.4418870386020389
+      "VOO_VGIT": 0.2620102371739752,
+      "VOO_GLD": 0.342272847010575,
+      "VGIT_GLD": 0.4306349647179648
     },
     "corr_30d_avg": {
-      "VOO_VGIT": 0.20649814341725262,
-      "VOO_GLD": 0.3179739817737766,
-      "VGIT_GLD": 0.36472927804818944
+      "VOO_VGIT": 0.2106830484139686,
+      "VOO_GLD": 0.3207819107769542,
+      "VGIT_GLD": 0.37099965583467615
     },
     "vol_annual": {
-      "VOO": 0.12548592033177003,
-      "VGIT": 0.03979930094283596,
-      "GLD": 0.2088462158082774
+      "VOO": 0.1208804387250276,
+      "VGIT": 0.039377795744398134,
+      "GLD": 0.20103765367891713
     },
     "hrp": {
-      "VOO": 0.898600767366873,
-      "VGIT": 0.0035533676471854116,
-      "GLD": 0.09784586498594158
+      "VOO": 0.8938139071229266,
+      "VGIT": 0.003923422855589003,
+      "GLD": 0.10226267002148437
     },
     "risk_parity": {
-      "VOO": 0.21653253011342735,
-      "VGIT": 0.6621320306156688,
-      "GLD": 0.12133543927090383
+      "VOO": 0.221110870818871,
+      "VGIT": 0.655161568471549,
+      "GLD": 0.12372756070957996
     },
-    "dcc_alpha": 0.03262640395378739,
-    "dcc_beta": 0.9154080319164047
+    "dcc_alpha": 0.032655803754472225,
+    "dcc_beta": 0.9158243166695343
   },
   "tyd_timing": {
-    "score": 45,
+    "score": 35,
     "label": "觀望"
   }
 }
